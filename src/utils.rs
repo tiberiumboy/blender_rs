@@ -1,0 +1,93 @@
+use crate::blender::BlenderConfig;
+#[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+use std::env::consts::ARCH;
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+use std::env::consts::OS;
+use std::{
+    fs,
+    io::{Error as IoError, ErrorKind, Result as IoResult},
+};
+use std::{path::PathBuf, sync::OnceLock};
+
+static EXT: OnceLock<String> = OnceLock::new();
+static ARCH: OnceLock<String> = OnceLock::new();
+
+/// Fetch the configuration path for blender.
+/// This is used to store temporary files and configuration files for blender.
+/// TODO: Consider loading this from user preferences?
+pub fn get_config_folder_path() -> IoResult<PathBuf> {
+    Ok(dirs::config_dir()
+        .ok_or(IoError::new(
+            ErrorKind::NotFound,
+            "Unable to find config directory!".to_owned(),
+        ))?
+        .join("BlendFarm"))
+}
+
+pub fn get_blend_config_default_location() -> IoResult<PathBuf> {
+    Ok(self::get_config_folder_path()?.join("BlenderManager.json"))
+}
+
+// I want this utilities to be only available under feature request.
+// This util requires additional library support to provide exact unified blender config location.
+pub fn get_blend_config_from_local() -> IoResult<BlenderConfig> {
+    let config_path = self::get_blend_config_default_location()?;
+    let data = fs::read(config_path)?;
+    Ok(serde_json::from_slice::<BlenderConfig>(&data)?)
+}
+
+/// Return extension matching to the current operating system. Windows(zip), Linux(tar.xz), or MacOS(dmg)
+/// This will return extension name without the initial period. Any period is treated as extension of extension (e.g. tar.xz)
+#[inline]
+pub(crate) fn get_extension() -> Result<&'static str, &'static str> {
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+    return Err(OS);
+    Ok(&EXT.get_or_init(|| {
+        #[cfg(target_os = "windows")]
+        return "zip".to_owned();
+        #[cfg(target_os = "macos")]
+        return "dmg".to_owned();
+        #[cfg(target_os = "linux")]
+        return "tar.xz".to_owned();
+    }))
+}
+
+/// Fetch Valid architecture. "x64" or "arm64"(apple silicon)
+#[inline]
+pub(crate) fn get_valid_arch() -> Result<&'static str, &'static str> {
+    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+    return Err(ARCH);
+    Ok(&ARCH.get_or_init(|| {
+        #[cfg(target_arch = "x86_64")]
+        return "x64".to_owned();
+        #[cfg(target_arch = "aarch64")]
+        return "arm64".to_owned();
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn assure_get_blend_config_from_local_succeed() {
+        let default_blend_config = get_blend_config_from_local();
+        assert!(default_blend_config.is_ok());
+    }
+
+    #[test]
+    fn assure_get_valid_arch_succeed() {
+        let arch = get_valid_arch();
+        assert!(arch.is_ok());
+
+        // TODO: Find out how to generate an error?
+    }
+
+    #[test]
+    fn assure_get_valid_ext_succeed() {
+        let ext = get_extension();
+        assert!(ext.is_ok());
+
+        // TODO: Find out how to generate an error?
+    }
+}

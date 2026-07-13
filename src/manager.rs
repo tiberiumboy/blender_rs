@@ -1,0 +1,278 @@
+/*
+Developer blog:
+This manager class will serve the following purpose:
+- Keep track of blender installation on this active machine.
+- Prevent downloading of the same blender version if we have one already installed.
+- If user fetch for list of installation, verify all path exist before returning the list.
+- Implements download and install code
+
+Story:
+    Pretend this as a factory. What should a manager do to perform this program execution.
+    This manager responsibility accounts for holding the list of known blender installation.
+        If the installation does not exist, we provide customer the ability to install Blender from known location. (Blender.org)
+        We download, extract, and symbolic link (Feature).
+        - Updated BlenderCategory to use different method of blender location.
+            Originally default to use BlenderOrg, but could point to Local (Can request intranet distribution service- Feature)?)
+        - Manager implements PhantomData to acknowledge modified data. This expose additional function to help ensure user can save the
+            configuration modification (New blender installation, download new version, cache refresh, etc). Limits API usage once we update phantom state to save or load.
+
+*/
+use crate::blender::{Blender, ComputerGraphicsProgram};
+use crate::models::blender_config::BlenderConfig;
+use crate::page_cache::PageCache;
+use crate::services::category;
+use crate::services::packages::package::{Package, PackageT};
+use crate::services::portal::Portal;
+use semver::Version;
+use std::path::Path;
+use std::sync::{OnceLock, RwLock};
+use std::{fs, path::PathBuf};
+use url::Url;
+
+// I would like this to be a feature only crate. blender by itself should be lightweight and interface with the program directly.
+// could also implement serde as optionals?
+#[derive(Debug)]
+pub enum ManagerError {
+    UnsupportedOS(String),
+    UnsupportedArch(String),
+    UnableToExtract(String),
+    FetchError(String),
+    DownloadNotFound {
+        arch: String,
+        os: String,
+        url: String,
+    },
+    RequestError(String),
+    IoError(std::io::Error),
+    Category(category::BlenderCategoryError),
+    UrlParseError(String),
+    PageCacheError(String),
+    BlenderError {
+        source: crate::blender::BlenderError,
+    },
+}
+
+// TODO: Look into OnceCell andsee how I can utilize lazy implementations?
+#[derive(Debug)]
+pub struct Manager {
+    /// Store all known installation of blender directory information
+    /// Manager's rulebook. Should only be available in this struct scope
+    // Soon to be replaced using Figment library
+    config: BlenderConfig,
+    portal: Portal,
+    // page cache
+    // page_cache: RwLock<PageCache>,
+}
+
+// I have a config file, which contains list of local installed blender
+// and install path. This Config struct is serialized and st
+
+// Manager should only govern local installed blenders (Or blenders that was added by users)
+impl Manager {
+    fn cache() -> &'static RwLock<PageCache> {
+        static CACHE: OnceLock<RwLock<PageCache>> = OnceLock::new();
+        CACHE.get_or_init(|| {
+            let cache = PageCache::load().expect("Unable to load Page Cache!");
+            RwLock::new(cache)
+        })
+    }
+
+    fn new(mut config: BlenderConfig, portal: Portal) -> Self {
+        config.remove_invalid_blender();
+
+        Manager {
+            config: config,
+            portal: portal,
+        }
+    }
+
+    pub fn check_compressed_by_file_name(&self, zip_file_name: &str) -> Option<PathBuf> {
+        self.portal
+            .check_compressed_blender_by_file_name(zip_file_name)
+    }
+
+    /// Load the manager data from the config file.
+    pub fn load(config: BlenderConfig) -> Result<Self, ManagerError> {
+        let download_path: &PathBuf = &config.clone().into();
+        let mut cache = Self::cache().write().unwrap();
+        let portal = Portal::fetch(&download_path, &mut cache)?;
+        cache.save().map_err(ManagerError::IoError)?;
+        Ok(Self::new(config, portal))
+    }
+
+    /// Returns a list of url path to download and version (For UI models)
+    pub fn get_online_version(&self) -> Vec<(Url, Version)> {
+        self.portal
+            .get_downloads()
+            .iter()
+            .map(|package| match package {
+                Package::Metadata(download_link) => (
+                    download_link.download_url.to_owned(),
+                    download_link.get_version().to_owned(),
+                ),
+                Package::Downloaded(downloaded) => (
+                    downloaded.origin.download_url.to_owned(),
+                    downloaded.get_version().to_owned(),
+                ),
+                Package::Bundle(bundle) => (
+                    bundle.content.origin.download_url.to_owned(),
+                    bundle.get_version().to_owned(),
+                ),
+            })
+            .collect::<Vec<(Url, Version)>>()
+    }
+
+    pub fn get_config(&self) -> &BlenderConfig {
+        &self.config
+    }
+
+    /// Set path for blender download and installation
+    pub fn set_install_path(&mut self, new_path: &Path) {
+        // Consider the design behind this. Should we move blender installations to new path?
+        self.config.set_install_path(new_path);
+    }
+
+    /// Add a new blender installation to the manager list.
+    /// Returns old blender value that was replaced by the new updated value.
+    pub fn add_blender(&mut self, blender: &Blender) -> Result<Option<Blender>, ManagerError> {
+        // Returns None if previously doesn't exist, or Some(old_value) when the record has been updated.
+        Ok(self.config.insert_blender(blender))
+    }
+
+    /// Remove blender installation from the manager list.
+    pub fn remove_blender(&mut self, blender: &Blender) -> Result<(), ManagerError> {
+        let _ = self.config.remove_blender(blender);
+        Ok(())
+    }
+
+    /// Deletes the parent directory that blender reside in. This might be a dangerous function as this involves removing the directory blender executable is in.
+    /// TODO: verify that this doesn't break macos path executable... Why mac gotta be special with appbundle?
+    // If this is a dangerous function, we should instead make this private and handle it carefully.
+    // TODO: Limiting scope visibility until we can make it private. I'm not sure where it's used atm, but making it work atm. 1 hour work
+    #[allow(dead_code)]
+    pub(crate) fn delete_blender(&mut self, blender: &Blender) -> Result<(), ManagerError> {
+        // this deletes blender from the system. You have been warn!
+        // BEWARE - MacOS is special that the executable path is referencing inside the bundle. I would need to get the app path instead of the bundle inside.
+        if std::env::consts::OS == "macos" {
+            panic!(
+                "Need to handle mac app path reference instead of path inside bundle! {:?}",
+                blender.get_executable()
+            );
+        }
+
+        // I'm still concern about this, why are we deleting the parent? Need to perform unit test for this to make sure it doesn't delete anything else.
+        fs::remove_dir_all(blender.get_executable().parent().unwrap()).unwrap();
+        self.remove_blender(blender)?;
+        Ok(())
+    }
+
+    /// This will first check if blender is installed locally, otherwise download the version online.
+    pub fn fetch_blender(&mut self, version: &Version) -> Result<Blender, ManagerError> {
+        match self.config.get_blender(version) {
+            Some(blender) => Ok(blender.clone()),
+            None => {
+                let blender = self.portal.download_blender(version)?;
+                // Expects no history previously stored due to match conditions above. If it breaks, something is seriously wrong.
+                if let Some(old_value) = self.add_blender(&blender)? {
+                    panic!("Record contain existing record, but filter above assure we didn't have it? {old_value:?}\n{:?}", &blender);
+                }
+                Ok(blender)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::models::blender_config::tests::{get_install_path, mock_blender_config};
+    use crate::services::portal::tests::mock_portal;
+
+    pub(crate) fn mock_manager(config: Option<BlenderConfig>, portal: Option<Portal>) -> Manager {
+        let config = config.unwrap_or(mock_blender_config(None));
+        let portal = portal.unwrap_or(mock_portal(None));
+        Manager { config, portal }
+    }
+
+    pub fn mock_manager_default() -> Manager {
+        mock_manager(None, None)
+    }
+
+    // TODO: Flaky unit test! Would fail occassionally?
+    #[test]
+    fn assure_cache_succeed() {
+        let cache = Manager::cache();
+        let result = cache.read();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn assure_new_succeed() {
+        let blend_config = mock_blender_config(None);
+        let portal = mock_portal(None);
+        let manager = mock_manager(Some(blend_config.clone()), Some(portal));
+        assert_eq!(manager.config, blend_config);
+    }
+
+    // TODO: Flaky unit test! Would fail occassionally?
+    #[test]
+    fn assure_load_succeed() {
+        let config = mock_blender_config(None);
+        let manager = Manager::load(config);
+        assert!(manager.is_ok());
+    }
+
+    #[test]
+    fn assure_get_config_succeed() {
+        let config = mock_blender_config(None);
+        let mock = mock_manager(Some(config.clone()), None);
+        let result = mock.get_config();
+        assert_eq!(result, &config);
+    }
+
+    #[test]
+    fn assure_invalid_check_compressed_by_file_name_return_none() {
+        let manager = mock_manager_default();
+        let file_name = "foobar";
+        let result = manager.check_compressed_by_file_name(file_name);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn assure_get_online_version_succeed() {
+        let config = mock_blender_config(None);
+        let portal = mock_portal(None);
+        let mock = mock_manager(Some(config), Some(portal));
+
+        let list = mock.get_online_version();
+        assert_eq!(list.iter().count(), 0);
+    }
+
+    #[test]
+    fn assure_fetch_blender_succeed() {
+        let version = Version::new(4, 2, 0);
+        let config = mock_blender_config(Some(version.clone()));
+        let mut mock = mock_manager(Some(config), None);
+        let result = mock.fetch_blender(&version);
+        assert!(result.is_ok_and(|f| f.get_version().eq(&version)));
+
+        let invalid = Version::new(4, 2, 2);
+        let result = mock.fetch_blender(&invalid);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn assure_set_install_path_succeed() {
+        let config = mock_blender_config(None);
+        let mut mock = mock_manager(Some(config.clone()), None);
+        let original_path = get_install_path(&config);
+        let new_path =
+            fs::canonicalize(PathBuf::from("./")).expect("Should parse into absolute path");
+
+        mock.set_install_path(&new_path);
+        assert_ne!(original_path, &new_path);
+        assert_eq!(get_install_path(&mock.get_config()), &new_path);
+    }
+
+    // TODO: Write unit test for Drop if that's possible?
+}

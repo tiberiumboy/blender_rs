@@ -1,5 +1,5 @@
 [package]
-name = "blender"
+name = "blender_rs"
 version = "0.1.0"
 edition = "2021"
 
@@ -16,9 +16,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["serde", "v4"] }
-ureq = "3"
+attohttpc = "*"
 blend = "0.8.0"
-tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
 clap = { version = "4.6", features = ["derive"] }

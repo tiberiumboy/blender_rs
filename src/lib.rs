@@ -1,5 +1,5 @@
 #![crate_type = "lib"]
-#![crate_name = "blender"]
+#![crate_name = "blender_rs"]
 #![cfg(not(doctest))]
 pub mod blend_file;
 pub mod blender;

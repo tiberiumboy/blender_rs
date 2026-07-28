@@ -70,3 +70,8 @@ pub(crate) fn get_config_folder_path() -> IoResult<PathBuf> {
 // To run process::Command, I must properly reference the executable path inside the blender.app on MacOS, using the hardcoded path below.
 #[cfg(target_os = "macos")]
 pub(crate) const MACOS_PATH: &str = "Contents/MacOS/Blender";
+
+#[cfg(test)]
+mod tests {
+    
+}

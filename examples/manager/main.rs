@@ -2,7 +2,7 @@
 // Below the surface should follow simple implementations similar to REST api.
 
 use blender_rs::{blender::get_blend_config_from_local, blender::Blender, manager::Manager};
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 // TODO: I only want to use clap for examples, but not include with the whole library itself.
 use clap::{Parser, Subcommand};
 use semver::Version;

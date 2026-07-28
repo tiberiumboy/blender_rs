@@ -10,7 +10,7 @@ from multiprocessing import cpu_count
 
 def eprint(msg):
     """Print exception tag message to console for program to intercept"""
-    print(f"EXCEPTION: {msg}\n", flush=True)
+    print(f"EXCEPTION: {msg}", flush=True)
 
 # hardware:[CPU,GPU,BOTH], kind: [NONE, CUDA, OPTIX, HIP, ONEAPI, (METAL?)]
 # Eventually in the future we could distribute to a point of using certain GPU for certain render?

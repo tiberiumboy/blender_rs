@@ -1,13 +1,13 @@
-use blender::blend_file::BlendFile;
-use blender::blender::get_blend_config_from_local;
-use blender::blender::Manager;
-use blender::models::event::RenderEvent;
-use blender::models::{args::Args, event::BlenderEvent};
+use blender_rs::blend_file::BlendFile;
+use blender_rs::blender::get_blend_config_from_local;
+use blender_rs::blender::Manager;
+use blender_rs::models::event::RenderEvent;
+use blender_rs::models::{args::Args, event::BlenderEvent};
 use semver::Version;
 use std::fs;
 use std::path::PathBuf;
 
-async fn render_with_manager() {
+fn render_with_manager() {
     let args = std::env::args().collect::<Vec<String>>();
 
     let blend_path = match args.get(1) {
@@ -46,16 +46,15 @@ async fn render_with_manager() {
         .expect("Must be able to collapse to absolute path!");
 
     // Create blender argument
-    let args = Args::new(blend_file, output, 2, 3);
+    let args = Args::new(blend_file, output, 2, 4);
 
     // render the frame. Completed render will return the path of the rendered frame, error indicates failure to render due to blender incompatible hardware settings or configurations. (CPU vs GPU / Metal vs OpenGL)
-    let listener = blender
+    let mut listener = blender
         .render(args)
-        .await
         .expect("Should not have any issue?");
 
     // Handle blender status
-    while let Ok(status) = listener.recv() {
+    while let Some(status) = listener.read() {
         match status {
             BlenderEvent::Rendering(render_event) => match render_event {
                 RenderEvent::Progress {
@@ -79,19 +78,20 @@ async fn render_with_manager() {
             BlenderEvent::Info(msg) => {
                 println!("[LOG] {msg}")
             }
-            BlenderEvent::Exit => {
-                println!("[Exit]");
-                break;
+            BlenderEvent::Busy => {
+                println!("Busy...");
+                continue;
             }
             _ => {
                 println!("Unhandled blender status! {:?}", status);
-                break;
+                // break;
             }
         }
     }
+
+    println!("Blender completed");
 }
 
-#[tokio::main]
-async fn main() {
-    render_with_manager().await;
+fn main() {
+    render_with_manager();
 }

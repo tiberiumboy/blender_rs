@@ -28,7 +28,7 @@ pub(crate) enum Package {
     Metadata(DownloadLink),
     // contains download origin and path to downloaded content
     Downloaded(Downloaded),
-    // Contains complete set, do not download, do not unpact, should provide executable path
+    // Contains complete set, do not download, do not unzip, should provide executable path
     Bundle(Bundle),
     // Only contains executable location, user defined variable
     // Executable(Custom),

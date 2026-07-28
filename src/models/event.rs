@@ -8,6 +8,7 @@ pub enum BlenderEvent {
     Warning(String),
     Exit,
     Error(String),
+    Busy,
     Unhandled(String),
 }
 

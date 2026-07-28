@@ -1,9 +1,8 @@
-use blender::blend_file::BlendFile;
+use blender_rs::blend_file::BlendFile;
 use std::path::PathBuf;
 
 /// Peek into the blend file to see what's inside.
-#[tokio::main]
-async fn main() {
+fn main() {
     let args = std::env::args().collect::<Vec<String>>();
     let blend_path = match args.get(1) {
         // Note this would only work if you ran the example from /blender_rs directory

@@ -14,13 +14,11 @@
 // May Subject to change.
 use super::device::Processor;
 use crate::{
-    blend_file::BlendFile,
-    blender::Frame,
-    models::{config::BlenderConfiguration, format::Format, peek_response::PeekResponse},
+    blend_file::BlendFile, blender::{BlenderError, Frame}, models::{config::BlenderConfiguration, format::Format, peek_response::PeekResponse},
 };
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::{io::BufReader, path::{Path, PathBuf}, process::{ChildStdout, Command, Stdio}};
 
 // Blender 4.2 introduce a new enum called BLENDER_EEVEE_NEXT, which is currently handle in python file atm.
 // const EEVEE_SWITCH: Version = Version::new(4, 2, 0);
@@ -59,7 +57,7 @@ impl Args {
     }
 
     /// Args are user provided value - this should not correlate to the machine's hardware (CUDA/OPTIX/GPU usage)
-    pub fn parse_from(&self, version: Option<&Version>) -> BlenderConfiguration {
+    fn parse_from(&self, version: Option<&Version>) -> BlenderConfiguration {
         let info: PeekResponse = self.file.peek_response(version);
         BlenderConfiguration::new(
             self.output.clone(),
@@ -71,6 +69,26 @@ impl Args {
             self.start,
             self.end,
         )
+    }
+
+    pub(crate) fn invoke_blender(
+        &self,
+        blender_path: &Path
+    ) -> Result<BufReader<ChildStdout>, BlenderError> {
+        // TODO: parse_from seems redundant?
+        let settings = self.parse_from(None);
+        let col = &self.file.setup_args(&settings)?;
+        let stdout = Command::new(blender_path)
+            .args(col)
+            .stdout(Stdio::piped())
+            .spawn()
+            .map_err(BlenderError::IoError)?
+            .stdout
+            .ok_or(BlenderError::RenderError(
+                "Unable to retrieve std output!".to_owned(),
+            ))?;
+
+        Ok(BufReader::new(stdout))
     }
 }
 

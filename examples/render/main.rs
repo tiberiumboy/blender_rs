@@ -6,9 +6,13 @@ use blender_rs::models::{args::Args, event::BlenderEvent};
 use semver::Version;
 use std::fs;
 use std::path::PathBuf;
+use std::range::Range;
+use std::sync::mpsc;
 
 fn render_with_manager() {
     let args = std::env::args().collect::<Vec<String>>();
+
+    let render_range = Range::from(1..5);
 
     let blend_path = match args.get(1) {
         // FIXME: Path is relative to where command is invoked. Must be from blender_rs directory, otherwise path will fail.
@@ -46,12 +50,12 @@ fn render_with_manager() {
         .expect("Must be able to collapse to absolute path!");
 
     // Create blender argument
-    let args = Args::new(blend_file, output, 2, 4);
+    let args = Args::new(blend_file, output, render_range.start, render_range.end);
 
     // render the frame. Completed render will return the path of the rendered frame, error indicates failure to render due to blender incompatible hardware settings or configurations. (CPU vs GPU / Metal vs OpenGL)
-    let mut listener = blender
-        .render(args)
-        .expect("Should not have any issue?");
+    let mut listener = blender.render(args).expect(
+        "Must be able to render! Please see the error and resolve the issue you may encounter",
+    );
 
     // Handle blender status
     while let Some(status) = listener.read() {

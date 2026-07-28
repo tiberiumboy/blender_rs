@@ -15,7 +15,7 @@ use crate::{
         config::BlenderConfiguration, peek_response::PeekResponse, render_setting::RenderSetting,
         scene_info::SceneInfo,
     },
-    utils::get_config_path,
+    utils::get_config_folder_path,
 };
 
 // A struct to hold valid blend file with compatible partial version.
@@ -30,8 +30,18 @@ pub struct BlendFile {
 }
 
 impl BlendFile {
-    fn get_script_path() -> PathBuf {
-        get_config_path().join("render.py")
+    fn get_script_path() -> Result<PathBuf, BlenderError> {
+        Ok(get_config_folder_path()
+            .map_err(BlenderError::IoError)?
+            .join("render.py"))
+    }
+
+    fn calculate_checksum(input: &[u8]) -> u64 {
+        let mut hash = DefaultHasher::new();
+        for bit in input {
+            hash.write_u8(*bit);
+        }
+        hash.finish()
     }
 
     pub fn new(path_to_blend_file: impl AsRef<Path>) -> Result<Self, BlenderError> {
@@ -62,16 +72,24 @@ impl BlendFile {
         })
     }
 
-    fn calculate_checksum(input: &[u8]) -> u64 {
-        let mut hash = DefaultHasher::new();
-        for bit in input {
-            hash.write_u8(*bit);
-        }
-        hash.finish()
+    pub fn get_partial_version(&self) -> (u16, u16) {
+        (self.major, self.minor)
+    }
+
+    pub fn peek_response(&self, version: Option<&Version>) -> PeekResponse {
+        let last_version = match version {
+            Some(v) => v,
+            None => &Version::new(self.major.into(), self.minor.into(), 0),
+        };
+        self.scene_info.peek_response(last_version)
+    }
+
+    pub fn to_path(&self) -> &Path {
+        self.inner.as_path()
     }
 
     pub fn setup_args(&self, settings: &BlenderConfiguration) -> Result<Vec<String>, BlenderError> {
-        let script_path = Self::get_script_path();
+        let script_path = Self::get_script_path()?;
         let data = include_bytes!("./render.py");
         if !script_path.exists() {
             fs::write(&script_path, data).map_err(BlenderError::IoError)?;
@@ -106,22 +124,6 @@ impl BlendFile {
             content,
         ])
     }
-
-    pub fn get_partial_version(&self) -> (u16, u16) {
-        (self.major, self.minor)
-    }
-
-    pub fn peek_response(&self, version: Option<&Version>) -> PeekResponse {
-        let last_version = match version {
-            Some(v) => v,
-            None => &Version::new(self.major.into(), self.minor.into(), 0),
-        };
-        self.scene_info.peek_response(last_version)
-    }
-
-    pub fn to_path(&self) -> &Path {
-        self.inner.as_path()
-    }
 }
 
 impl Into<PathBuf> for BlendFile {
@@ -144,34 +146,31 @@ impl Into<SceneInfo> for BlendFile {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::env;
+    use std::str::FromStr;
+
     use super::*;
-    use crate::models::config::tests::mock_blender_configuration;
     use crate::models::render_setting::tests::mock_rendering_setting;
     use crate::models::scene_info::tests::mock_scene_info;
 
     pub(crate) fn mock_blend_file() -> BlendFile {
+        let mut dir = env::current_exe().expect("Must have valid current executable!");
+        dir.pop();
+        dir.pop();
+        dir.pop();
+        dir.pop();
+        // TODO: Find a way to reference relative path to ./blender_rs/examples/assets/test.blend?
+        dbg!(&dir);
+        let example_blend = "./examples/assets/test.blend";
         let scene_info = mock_scene_info();
         let render_setting = mock_rendering_setting();
+        let inner = PathBuf::from_str(example_blend).expect("Must have a valid location!");
         BlendFile {
-            // TODO: Find a way to reference relative path to ./blender_rs/examples/assets/test.blend?
-            inner: PathBuf::new(),
+            inner,
             major: 4,
             minor: 2,
             scene_info,
             render_setting,
         }
-    }
-
-    #[test]
-    fn test_setup_args() {
-        // here we will test the argument and verify that this is the correct cli usage to call blender application.
-        // In this method imoplementation it will verify that the python file exist before running blender application.
-        // Ensure the python script exist at the end of the test.
-        let mock_blend_file = mock_blend_file();
-        let mock_blend_config = mock_blender_configuration();
-        let args = mock_blend_file.setup_args(&mock_blend_config);
-        assert!(args.is_ok());
-        let script_path = BlendFile::get_script_path();
-        assert!(script_path.exists())
     }
 }

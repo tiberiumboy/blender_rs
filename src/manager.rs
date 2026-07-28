@@ -44,7 +44,6 @@ pub enum ManagerError {
     },
     RequestError(String),
     IoError(std::io::Error),
-    SerdeJson(serde_json::Error),
     Category(category::BlenderCategoryError),
     UrlParseError(String),
     PageCacheError(String),
@@ -59,8 +58,8 @@ pub struct Manager {
     /// Store all known installation of blender directory information
     /// Manager's rulebook. Should only be available in this struct scope
     // Soon to be replaced using Figment library
-    config: RwLock<BlenderConfig>,
-    portal: RwLock<Portal>,
+    config: BlenderConfig,
+    portal: Portal,
     // page cache
     // page_cache: RwLock<PageCache>,
 }
@@ -80,15 +79,13 @@ impl Manager {
 
     fn new(config: BlenderConfig, portal: Portal) -> Self {
         Manager {
-            config: RwLock::new(config),
-            portal: RwLock::new(portal),
+            config: config,
+            portal: portal,
         }
     }
 
     pub fn check_compressed_by_file_name(&self, zip_file_name: &str) -> Option<PathBuf> {
         self.portal
-            .read()
-            .unwrap()
             .check_compressed_blender_by_file_name(zip_file_name)
     }
 
@@ -105,20 +102,9 @@ impl Manager {
         Ok(Self::new(config, portal))
     }
 
-    // Save the configuration
-    // TODO: what purpose does this serve for the manager to save?
-    pub fn save(&self) -> Result<(), ManagerError> {
-        todo!("Missing implementation for saving BlenderConfig back to file using Figment");
-        // TODO: Use Yaml instead of json
-        // let data = serde_json::to_string(&self.config).map_err(ManagerError::SerdeJson)?;
-        // fs::write(self.config.get_config_path(), data).map_err(ManagerError::IoError)
-    }
-
     /// Returns a list of url path to download and version (For UI models)
     pub fn get_online_version(&self) -> Vec<(Url, Version)> {
         self.portal
-            .read()
-            .unwrap()
             .get_downloads()
             .iter()
             .map(|package| match package {
@@ -138,30 +124,26 @@ impl Manager {
             .collect::<Vec<(Url, Version)>>()
     }
 
-    // It's used to display the information on the website.
-    // pub fn get_install_path(&self) -> &Path {
-    //     &self.config.read().unwrap().install_path
-    // }
-    pub fn get_config(&self) -> BlenderConfig {
-        self.config.read().unwrap().clone()
+    pub fn get_config(&self) -> &BlenderConfig {
+        &self.config
     }
 
     /// Set path for blender download and installation
     pub fn set_install_path(&mut self, new_path: &Path) {
         // Consider the design behind this. Should we move blender installations to new path?
-        self.config.write().unwrap().set_install_path(new_path);
+        self.config.set_install_path(new_path);
     }
 
     /// Add a new blender installation to the manager list.
     /// Returns old blender value that was replaced by the new updated value.
-    pub fn add_blender(&self, blender: &Blender) -> Result<Option<Blender>, ManagerError> {
+    pub fn add_blender(&mut self, blender: &Blender) -> Result<Option<Blender>, ManagerError> {
         // Returns None if previously doesn't exist, or Some(old_value) when the record has been updated.
-        Ok(self.config.write().unwrap().insert_blender(blender))
+        Ok(self.config.insert_blender(blender))
     }
 
     /// Remove blender installation from the manager list.
-    pub fn remove_blender(&self, blender: &Blender) -> Result<(), ManagerError> {
-        let _ = self.config.write().unwrap().remove_blender(blender);
+    pub fn remove_blender(&mut self, blender: &Blender) -> Result<(), ManagerError> {
+        let _ = self.config.remove_blender(blender);
         Ok(())
     }
 
@@ -170,7 +152,7 @@ impl Manager {
     // If this is a dangerous function, we should instead make this private and handle it carefully.
     // TODO: Limiting scope visibility until we can make it private. I'm not sure where it's used atm, but making it work atm. 1 hour work
     #[allow(dead_code)]
-    pub(crate) fn delete_blender(&self, blender: &Blender) -> Result<(), ManagerError> {
+    pub(crate) fn delete_blender(&mut self, blender: &Blender) -> Result<(), ManagerError> {
         // this deletes blender from the system. You have been warn!
         // BEWARE - MacOS is special that the executable path is referencing inside the bundle. I would need to get the app path instead of the bundle inside.
         if std::env::consts::OS == "macos" {
@@ -188,10 +170,10 @@ impl Manager {
 
     /// This will first check if blender is installed locally, otherwise download the version online.
     pub fn fetch_blender(&mut self, version: &Version) -> Result<Blender, ManagerError> {
-        match self.config.read().unwrap().get_blender(version) {
+        match self.config.get_blender(version) {
             Some(blender) => Ok(blender.clone()),
             None => {
-                let blender = self.portal.write().unwrap().download_blender(version)?;
+                let blender = self.portal.download_blender(version)?;
                 // Expects no history previously stored due to match conditions above. If it breaks, something is seriously wrong.
                 if let Some(old_value) = self.add_blender(&blender)? {
                     panic!("Record contain existing record, but filter above assure we didn't have it? {old_value:?}\n{:?}", &blender);
@@ -210,11 +192,7 @@ pub mod tests {
 
     pub fn mock_manager() -> Manager {
         let config = mock_blender_config();
-        let config = RwLock::new(config);
-
         let portal = mock_portal();
-        let portal = RwLock::new(portal);
-
         Manager { config, portal }
     }
 

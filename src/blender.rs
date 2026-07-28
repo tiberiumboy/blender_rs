@@ -68,8 +68,8 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::num::ParseIntError;
-use std::process::Command;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 pub type Frame = i32;
 
@@ -325,7 +325,7 @@ impl Blender {
     // issue here is that we need to lock thread. If we are rendering, we need to be able to call abort.
     pub fn render(&self, args: Args) -> Result<BlenderProcess, BlenderError> {
         // I'm not even sure why we have two mpsc here for setup_listening_blender to use?
-        Ok(BlenderProcess::new(args, self)?)
+        Ok(BlenderProcess::new(args, &self)?)
     }
     // TODO: Can we use stream instead? how can we parse data from blender into recognizable style?
 }

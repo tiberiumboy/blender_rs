@@ -14,11 +14,17 @@
 // May Subject to change.
 use super::device::Processor;
 use crate::{
-    blend_file::BlendFile, blender::{BlenderError, Frame}, models::{config::BlenderConfiguration, format::Format, peek_response::PeekResponse},
+    blend_file::BlendFile,
+    blender::{BlenderError, Frame},
+    models::{config::BlenderConfiguration, format::Format, peek_response::PeekResponse},
 };
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::{io::BufReader, path::{Path, PathBuf}, process::{ChildStdout, Command, Stdio}};
+use std::{
+    io::BufReader,
+    path::{Path, PathBuf},
+    process::{ChildStdout, Command, Stdio},
+};
 
 // Blender 4.2 introduce a new enum called BLENDER_EEVEE_NEXT, which is currently handle in python file atm.
 // const EEVEE_SWITCH: Version = Version::new(4, 2, 0);
@@ -46,8 +52,8 @@ pub struct Args {
 impl Args {
     pub fn new(file: BlendFile, output: PathBuf, start: Frame, end: Frame) -> Self {
         Args {
-            file: file,
-            output: output,
+            file,
+            output,
             processor: Processor::NONE,
             mode: HardwareMode::CPU,
             format: Format::default(),
@@ -73,7 +79,7 @@ impl Args {
 
     pub(crate) fn invoke_blender(
         &self,
-        blender_path: &Path
+        blender_path: &Path,
     ) -> Result<BufReader<ChildStdout>, BlenderError> {
         // TODO: parse_from seems redundant?
         let settings = self.parse_from(None);

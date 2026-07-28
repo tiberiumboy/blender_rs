@@ -12,16 +12,14 @@ use std::{path::PathBuf, sync::OnceLock};
 static EXT: OnceLock<String> = OnceLock::new();
 static ARCH: OnceLock<String> = OnceLock::new();
 
+pub fn get_blend_config_default_location() -> IoResult<PathBuf> {
+    Ok(self::get_config_folder_path()?.join("BlenderManager.json"))
+}
+
 // I want this utilities to be only available under feature request.
 // This util requires additional library support to provide exact unified blender config location.
 pub fn get_blend_config_from_local() -> IoResult<BlenderConfig> {
-    let config_path = dirs::config_dir()
-        .ok_or(IoError::new(
-            ErrorKind::NotFound,
-            "Unable to find config directory!".to_owned(),
-        ))?
-        .join("BlendFarm")
-        .join("BlenderManager.json");
+    let config_path = self::get_blend_config_default_location()?;
     let data = fs::read(config_path)?;
     Ok(serde_json::from_slice::<BlenderConfig>(&data)?)
 }
@@ -58,8 +56,13 @@ pub(crate) fn get_valid_arch() -> Result<&'static str, &'static str> {
 /// Fetch the configuration path for blender.
 /// This is used to store temporary files and configuration files for blender.
 /// TODO: Consider loading this from user preferences?
-pub(crate) fn get_config_path() -> PathBuf {
-    dirs::config_dir().unwrap().join("BlendFarm")
+pub(crate) fn get_config_folder_path() -> IoResult<PathBuf> {
+    Ok(dirs::config_dir()
+        .ok_or(IoError::new(
+            ErrorKind::NotFound,
+            "Unable to find config directory!".to_owned(),
+        ))?
+        .join("BlendFarm"))
 }
 
 // TODO: this is ugly, and I want to get rid of this. How can I improve this?

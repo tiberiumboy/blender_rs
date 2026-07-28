@@ -52,7 +52,11 @@ fn handle_download_blender(manager: &mut Manager, version: &Version) {
         Err(e) => eprintln!("[Fail] Unable to fetch blender {}: {:?}", &version, e),
     }
     // you should at least save the record if it has been modified. Otherwise all record changes will not be saved away.
-    if let Err(e) = manager.save() {
+    let config = manager.get_config();
+    let contents = serde_json::to_string(config).expect("Should be able to deserialize struct!");
+    // TODO: Where is the path we loaded the config from?
+    let path = PathBuf::new();
+    if let Err(e) = fs::write(path, contents) {
         eprintln!("Unable to update persistent data! Changes made will be lost! {e:?}");
     }
 }
@@ -76,11 +80,14 @@ fn main() {
                 if let Err(e) = manager.add_blender(&blender) {
                     eprintln!("Fail to add blender! {e:?}");
                 }
-
-                // here we need to fetch the new table and save it as new config file
-                // if let Err(e) = manager.save() {
-                //     eprintln!("Unable to update existing config file! {e:?}");
-                // }
+                let config = manager.get_config();
+                let contents =
+                    serde_json::to_string(config).expect("Should be able to deserialize config!");
+                // TODO: Find out where I load this config from?
+                let path = PathBuf::new();
+                if let Err(e) = fs::write(path, contents) {
+                    eprintln!("Unable to update existing config file! {e:?}");
+                }
             }
             Command::ExactDownload { version } => {
                 handle_download_blender(&mut manager, &version);

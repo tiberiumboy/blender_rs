@@ -12,6 +12,19 @@ use std::{path::PathBuf, sync::OnceLock};
 static EXT: OnceLock<String> = OnceLock::new();
 static ARCH: OnceLock<String> = OnceLock::new();
 
+/// Fetch the configuration path for blender.
+/// This is used to store temporary files and configuration files for blender.
+/// TODO: Consider loading this from user preferences?
+pub fn get_config_folder_path() -> IoResult<PathBuf> {
+    Ok(dirs::config_dir()
+        .ok_or(IoError::new(
+            ErrorKind::NotFound,
+            "Unable to find config directory!".to_owned(),
+        ))?
+        .join("BlendFarm"))
+}
+
+
 pub fn get_blend_config_default_location() -> IoResult<PathBuf> {
     Ok(self::get_config_folder_path()?.join("BlenderManager.json"))
 }
@@ -51,18 +64,6 @@ pub(crate) fn get_valid_arch() -> Result<&'static str, &'static str> {
         #[cfg(target_arch = "aarch64")]
         return "arm64".to_owned();
     }))
-}
-
-/// Fetch the configuration path for blender.
-/// This is used to store temporary files and configuration files for blender.
-/// TODO: Consider loading this from user preferences?
-pub(crate) fn get_config_folder_path() -> IoResult<PathBuf> {
-    Ok(dirs::config_dir()
-        .ok_or(IoError::new(
-            ErrorKind::NotFound,
-            "Unable to find config directory!".to_owned(),
-        ))?
-        .join("BlendFarm"))
 }
 
 // TODO: this is ugly, and I want to get rid of this. How can I improve this?

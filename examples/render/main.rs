@@ -7,7 +7,6 @@ use semver::Version;
 use std::fs;
 use std::path::PathBuf;
 use std::range::Range;
-use std::sync::mpsc;
 
 fn render_with_manager() {
     let args = std::env::args().collect::<Vec<String>>();

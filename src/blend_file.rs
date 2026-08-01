@@ -44,9 +44,9 @@ impl BlendFile {
         hash.finish()
     }
 
-    pub fn new(path_to_blend_file: impl AsRef<Path>) -> Result<Self, BlenderError> {
-        let blend = Blend::from_path(&path_to_blend_file).map_err(|e| {
-            BlenderError::InvalidFile(format!("Received BlenderParseError! {e:?}").to_owned())
+    pub fn try_from(blend_file_path: impl AsRef<Path> ) -> Result<Self, BlenderError> {
+        let blend = Blend::from_path(&blend_file_path).map_err(|e| {
+            BlenderError::InvalidFile(format!("Received BlendParseError! {e:?}").to_owned())
         })?;
 
         // blender version are display as three digits number, e.g. 404 is major: 4, minor: 4.
@@ -62,14 +62,29 @@ impl BlendFile {
 
         let scene_info = SceneInfo::default().process(&blend)?;
         let render_setting = scene_info.clone().render_setting();
+        let inner = blend_file_path.as_ref().to_path_buf();
 
-        Ok(BlendFile {
-            inner: path_to_blend_file.as_ref().to_path_buf(),
+        Ok(BlendFile::new(inner,
+            major,
+            minor,
+            scene_info,
+            render_setting
+        ))
+    }
+
+    fn new(inner: PathBuf,
+            major: u16,
+            minor: u16,
+            scene_info: SceneInfo,
+            render_setting: RenderSetting
+            ) -> Self {
+        BlendFile {
+            inner,
             major,
             minor,
             render_setting,
             scene_info,
-        })
+        }
     }
 
     pub fn get_partial_version(&self) -> (u16, u16) {

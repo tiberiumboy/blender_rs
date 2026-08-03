@@ -11,7 +11,6 @@ use std::{
 };
 use url::Url;
 
-// TODO: Could I implement Hash traits? Use version as hash id
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct DownloadLink {
     pub version: Version,
@@ -71,7 +70,7 @@ impl DownloadLink {
             // It's like why can't we stream directly to io?
             match response.bytes() {
                 Ok(data) => fs::write(&target, data)?,
-                Err(e) => eprintln!("Fail to read data from response! {e:?}")
+                Err(e) => eprintln!("Fail to read data from response! {e:?}"),
             }
         }
 

@@ -232,10 +232,10 @@ pub mod tests {
     pub fn mock_portal() -> Portal {
         let list = Vec::new();
         let download_path = PathBuf::new();
-        
+
         Portal {
-            list, 
-            download_path
+            list,
+            download_path,
         }
     }
 }

@@ -1,7 +1,6 @@
 use std::{
     fs,
     hash::{DefaultHasher, Hasher},
-    num::ParseIntError,
     path::{Path, PathBuf},
 };
 
@@ -49,16 +48,9 @@ impl BlendFile {
             BlenderError::InvalidFile(format!("Received BlendParseError! {e:?}").to_owned())
         })?;
 
-        // blender version are display as three digits number, e.g. 404 is major: 4, minor: 4.
-        // treat this as a u16 major = u16 / 100, minor = u16 % 100;
-        let str_version = std::str::from_utf8(&blend.blend.header.version)
-            .map_err(|e| BlenderError::InvalidFile(e.to_string()))?;
-
-        let value: u16 = str_version
-            .parse()
-            .map_err(|e: ParseIntError| BlenderError::InvalidFile(e.to_string()))?;
-        let major = value / 100;
-        let minor = value % 100;
+        let version = &blend.blend.header.version;
+        let major = version.major;
+        let minor = version.minor;
 
         let scene_info = SceneInfo::default().process(&blend)?;
         let render_setting = scene_info.clone().render_setting();

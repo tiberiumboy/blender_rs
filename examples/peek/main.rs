@@ -10,7 +10,7 @@ fn main() {
         Some(p) => PathBuf::from(p),
     };
 
-    match BlendFile::new(&blend_path) {
+    match BlendFile::try_from(blend_path) {
         Ok(result) => println!("{:?}", &result.peek_response(None)),
         Err(e) => println!("Error: {:?}", e),
     }

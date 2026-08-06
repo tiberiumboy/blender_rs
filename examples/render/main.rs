@@ -20,7 +20,7 @@ fn render_with_manager() {
     };
 
     // loads blender file and retrieve some information to display for job queue.
-    let blend_file = BlendFile::new(&blend_path).expect("Expects a valid blend file to continue!");
+    let blend_file = BlendFile::try_from(&blend_path).expect("Expects a valid blend file to continue!");
 
     let config = get_blend_config_from_local().expect("Unable to get blend config!");
 

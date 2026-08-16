@@ -1,5 +1,5 @@
 use crate::{
-    blender::Blender,
+    blender::{Blender, ComputerGraphicsProgram},
     services::packages::{downloaded::Downloaded, package::PackageT, BlenderPath},
 };
 use serde::{Deserialize, Serialize};

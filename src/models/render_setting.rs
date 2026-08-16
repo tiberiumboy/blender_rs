@@ -8,7 +8,7 @@ pub type FrameRate = u16; // u32 convert into string for xml-rpc. BEWARE!
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RenderSetting {
     /// output of where our stored image will save to
-    output: PathBuf,
+    pub output: PathBuf,
     /// Render frame Width
     pub width: Frame, // Not to be confused with animation frame
     /// Render frame height
@@ -43,15 +43,6 @@ impl RenderSetting {
             format,
             border,
         }
-    }
-
-    pub fn set_output(mut self, output: PathBuf) -> Self {
-        self.output = output;
-        self
-    }
-
-    pub fn get_output(&self) -> &PathBuf {
-        &self.output
     }
 }
 

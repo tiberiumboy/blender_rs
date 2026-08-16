@@ -2,7 +2,7 @@ use crate::blender::Blender;
 use crate::services::packages::BlenderPath;
 use crate::services::packages::{download_link::DownloadLink, package::Package};
 use crate::utils::{get_extension, get_valid_arch};
-use lazy_regex::{self, regex_captures_iter};
+use regex::Regex;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::env::consts;
 use std::io::Error as IoError;
 use std::path::Path;
+use std::sync::LazyLock;
 use url::Url;
 
 // I have a situation where I can create this object, but not yet populate the download list.
@@ -72,16 +73,19 @@ impl BlenderCategory {
         base_url: &Url,
         download_path: impl AsRef<Path>,
     ) -> Result<HashMap<Version, Package>, BlenderCategoryError> {
+        static CONTEXT_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(
+                r#"<a href="(?<url>\w*-(?<major>\d*).(?<minor>\d*).(?<patch>\d*.)-(?<os>\w.*)-(?<arch>\w*)\.(?<ext>.*))">"#,
+            ).unwrap()
+        });
+
         let current_arch =
             get_valid_arch().map_err(|e| BlenderCategoryError::InvalidArch(e.into()))?;
         let valid_ext =
             get_extension().map_err(|e| BlenderCategoryError::UnsupportedOS(e.into()))?;
 
         // The rule has changed. The extension will not include a period symbol. Additional period will be treated as extension of extension, e.g. tar.xz
-        let iter = regex_captures_iter!(
-            r#"<a href="(?<url>\w*-(?<major>\d*).(?<minor>\d*).(?<patch>\d*.)-(?<os>\w.*)-(?<arch>\w*)\.(?<ext>.*))">"#,
-            &content
-        );
+        let iter = CONTEXT_REGEX.captures_iter(&content);
         let links = iter.map(|c| c.extract()).fold(
             HashMap::new(),
             |mut map, (_, [url, major, minor, patch, os, arch, ext])| {
@@ -134,6 +138,7 @@ impl BlenderCategory {
                         return map;
                     }
                 };
+
                 let link = match DownloadLink::new(url, version.clone()) {
                     Ok(link) => link,
                     Err(e) => {
@@ -141,6 +146,7 @@ impl BlenderCategory {
                         return map;
                     }
                 };
+
                 if let Ok(package) = Package::check_package(link, &download_path) {
                     map.insert(version, package);
                 }
@@ -152,6 +158,7 @@ impl BlenderCategory {
         Ok(links)
     }
 
+    // TODO: consider making this private?
     pub fn new(base_url: Url, major: u64, minor: u64, links: HashMap<Version, Package>) -> Self {
         Self {
             base_url,

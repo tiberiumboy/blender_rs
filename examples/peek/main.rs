@@ -11,7 +11,7 @@ fn main() {
     };
 
     match BlendFile::try_from(blend_path) {
-        Ok(result) => println!("{:?}", &result.peek_response(None)),
+        Ok(result) => println!("{:?}", &result.peek_response()),
         Err(e) => println!("Error: {:?}", e),
     }
 }

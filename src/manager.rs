@@ -17,7 +17,7 @@ Story:
             configuration modification (New blender installation, download new version, cache refresh, etc). Limits API usage once we update phantom state to save or load.
 
 */
-use crate::blender::Blender;
+use crate::blender::{Blender, ComputerGraphicsProgram};
 use crate::models::blender_config::BlenderConfig;
 use crate::page_cache::PageCache;
 use crate::services::category;
@@ -77,7 +77,9 @@ impl Manager {
         })
     }
 
-    fn new(config: BlenderConfig, portal: Portal) -> Self {
+    fn new(mut config: BlenderConfig, portal: Portal) -> Self {
+        config.remove_invalid_blender();
+
         Manager {
             config: config,
             portal: portal,

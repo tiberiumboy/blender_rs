@@ -2,10 +2,11 @@ use crate::blender::Blender;
 use crate::services::category::BlenderCategory;
 use crate::services::packages::package::Package;
 use crate::{blender::ManagerError, page_cache::PageCache};
-use lazy_regex::regex_captures_iter;
+use regex::Regex;
 use semver::Version;
 use std::env::consts::{ARCH, OS};
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use url::Url;
 
 // I want this struct to remain private for now.
@@ -94,6 +95,10 @@ impl Portal {
         download_path: impl AsRef<Path>,
         cache: &mut PageCache,
     ) -> Result<Self, ManagerError> {
+        static DETAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(r#"<a href="(?<url>.*)">Blender(?<major>[3-9]|\d{1,}).(?<minor>\d*)/</a>"#)
+                .unwrap()
+        });
         let parent = Url::parse(Self::ROOT_URL)
             .map_err(|e| return ManagerError::UrlParseError(e.to_string()))?;
 
@@ -104,10 +109,7 @@ impl Portal {
 
         // Omit any blender version 2.8 and below
         // TODO: BUG: It's not omitting version 2.8 and below. Would like to omit any version 3.8 and below for now.
-        let iter = regex_captures_iter!(
-            r#"<a href="(?<url>.*)">Blender(?<major>[3-9]|\d{1,}).(?<minor>\d*)/</a>"#,
-            &content
-        );
+        let iter = DETAIL_REGEX.captures_iter(&content);
 
         let mut list = iter.map(|c| c.extract()).fold(
             Vec::new(),

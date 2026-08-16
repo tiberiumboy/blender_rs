@@ -24,7 +24,6 @@ pub fn get_config_folder_path() -> IoResult<PathBuf> {
         .join("BlendFarm"))
 }
 
-
 pub fn get_blend_config_default_location() -> IoResult<PathBuf> {
     Ok(self::get_config_folder_path()?.join("BlenderManager.json"))
 }
@@ -74,5 +73,17 @@ pub(crate) const MACOS_PATH: &str = "Contents/MacOS/Blender";
 
 #[cfg(test)]
 mod tests {
-    
+    use super::*;
+
+    #[test]
+    fn assure_get_blend_config_from_local_succeed() {
+        let default_blend_config = get_blend_config_from_local();
+        assert!(default_blend_config.is_ok());
+    }
+
+    #[test]
+    fn assure_get_valid_arch_succeed() {
+        let arch = get_valid_arch();
+        assert!(arch.is_ok());
+    }
 }

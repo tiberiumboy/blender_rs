@@ -1,26 +1,57 @@
 use blender_rs::blend_file::BlendFile;
 use blender_rs::blender::get_blend_config_from_local;
+use blender_rs::blender::ComputerGraphicsProgram;
+use blender_rs::blender::Frame;
 use blender_rs::blender::Manager;
 use blender_rs::models::event::RenderEvent;
 use blender_rs::models::{args::Args, event::BlenderEvent};
+use clap::Parser;
 use semver::Version;
 use std::fs;
 use std::path::PathBuf;
-use std::range::Range;
+
+#[derive(Debug, Parser)]
+struct RenderCli {
+    // Path to render user defined blend files
+    #[arg(short, long)]
+    path: Option<PathBuf>,
+
+    // render starts from this frame
+    #[arg(short, long, default_value_t = 1)]
+    start: Frame,
+
+    // end frame to render to
+    #[arg(short, long, default_value_t = 5)]
+    end: Frame,
+}
 
 fn render_with_manager() {
-    let args = std::env::args().collect::<Vec<String>>();
+    let args = RenderCli::parse();
 
-    let render_range = Range::from(1..5);
+    let blend_path = match args.path {
+        None => {
+            // FIXME: Path is relative to where command is invoked. Must be from blender_rs directory, otherwise path will fail.
+            let default_example_path = PathBuf::from("./examples/assets/test.blend");
 
-    let blend_path = match args.get(1) {
-        // FIXME: Path is relative to where command is invoked. Must be from blender_rs directory, otherwise path will fail.
-        None => PathBuf::from("./examples/assets/test.blend"),
-        Some(p) => PathBuf::from(p),
+            // if the default example provided with this program is missing, panic. There must be an example provided to run.
+            if !default_example_path.exists() {
+                let path = default_example_path.to_string_lossy();
+                panic!("Blend File not found! {path}");
+            }
+
+            default_example_path
+        }
+        // returns if blend file location is valid.
+        Some(p) if p.exists() && p.is_file() => p,
+        // User provided invalid location.
+        Some(invalid) => {
+            let path = invalid.to_string_lossy();
+            panic!("Unable to find \"{path}\"");
+        }
     };
 
     // loads blender file and retrieve some information to display for job queue.
-    let blend_file = BlendFile::try_from(&blend_path).expect("Expects a valid blend file to continue!");
+    let blend_file = BlendFile::try_from(&blend_path).expect("Must be a valid blend file!");
 
     let config = get_blend_config_from_local().expect("Unable to get blend config!");
 
@@ -49,7 +80,7 @@ fn render_with_manager() {
         .expect("Must be able to collapse to absolute path!");
 
     // Create blender argument
-    let args = Args::new(blend_file, output, render_range.start, render_range.end);
+    let args = Args::new(blend_file, output, args.start, args.end);
 
     // render the frame. Completed render will return the path of the rendered frame, error indicates failure to render due to blender incompatible hardware settings or configurations. (CPU vs GPU / Metal vs OpenGL)
     let mut listener = blender.render(args).expect(
@@ -97,4 +128,14 @@ fn render_with_manager() {
 
 fn main() {
     render_with_manager();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn assure_test_example_success() {
+        render_with_manager();
+    }
 }

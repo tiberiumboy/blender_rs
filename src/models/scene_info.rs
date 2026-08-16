@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use blend::Blend;
 use semver::Version;
@@ -29,6 +29,32 @@ pub struct SceneInfo {
 }
 
 impl SceneInfo {
+    // Creating a private protected new function here
+    #[allow(dead_code)]
+    fn new(
+        scenes: Vec<SceneName>,
+        cameras: Vec<Camera>,
+        frame_start: Frame,
+        frame_end: Frame,
+        render_width: i32,
+        render_height: i32,
+        fps: FrameRate,
+        sample: Sample,
+        output: impl AsRef<Path>,
+    ) -> Self {
+        SceneInfo {
+            scenes,
+            cameras,
+            frame_start,
+            frame_end,
+            render_width,
+            render_height,
+            fps,
+            sample,
+            output: output.as_ref().to_path_buf(),
+        }
+    }
+
     pub fn selected_camera(&self) -> String {
         self.cameras.get(0).unwrap_or(&"".to_owned()).to_owned()
     }
@@ -37,7 +63,8 @@ impl SceneInfo {
         self.scenes.get(0).unwrap_or(&"".to_owned()).to_owned()
     }
 
-    pub(crate) fn process(mut self, blend: &Blend) -> Result<Self, BlenderError> {
+    pub fn process(blend: &Blend) -> Result<Self, BlenderError> {
+        let mut scene_info = Self::new(Vec::new(), Vec::new(), 0, 0, 0, 0, 0, 0, PathBuf::new());
         // this denotes how many scene objects there are.
         for obj in blend.instances_with_code(*b"SC") {
             let scene = obj.get("id").get_string("name").replace("SC", ""); // not the correct name usage?
@@ -51,55 +78,58 @@ impl SceneInfo {
             //     _ => Engine::CYCLES,
             // };
 
-            self.sample = obj.get("eevee").get_i32("taa_render_samples");
+            scene_info.sample = obj.get("eevee").get_i32("taa_render_samples");
 
             // Issue, Cannot find cycles info! Blender show that it should be here under SCscene, just like eevee, but I'm looking it over and over and it's not there? Where is cycle?
             // Use this for development only!
             // Self::explore_value(&obj.get("eevee"));
 
-            self.render_width = render.get_i32("xsch");
-            self.render_height = render.get_i32("ysch");
-            self.frame_start = render.get_i32("sfra");
-            self.frame_end = render.get_i32("efra");
-            self.fps = render.get_u16("frs_sec");
-            self.output = render
+            scene_info.render_width = render.get_i32("xsch");
+            scene_info.render_height = render.get_i32("ysch");
+            scene_info.frame_start = render.get_i32("sfra");
+            scene_info.frame_end = render.get_i32("efra");
+            scene_info.fps = render.get_u16("frs_sec");
+            scene_info.output = render
                 .get_string("pic")
                 .parse::<PathBuf>()
                 .map_err(|e| BlenderError::PythonError(e.to_string()))?;
 
-            self.scenes.push(scene);
+            scene_info.scenes.push(scene);
         }
 
         // interesting - I'm picking up the wrong camera here?
         for obj in blend.instances_with_code(*b"CA") {
             let camera = obj.get("id").get_string("name").replace("CA", "");
-            self.cameras.push(camera);
+            scene_info.cameras.push(camera);
         }
 
-        Ok(self)
+        Ok(scene_info)
     }
 
-    pub fn render_setting(self) -> RenderSetting {
+    pub fn render_setting(self, format: Format, window: Window) -> RenderSetting {
         RenderSetting::new(
             self.output,
             self.render_width,
             self.render_height,
             self.sample,
             self.fps,
-            Format::default(),
-            Window::default(),
+            format,
+            window,
         )
     }
 
-    pub(crate) fn peek_response(&self, version: &Version) -> PeekResponse {
+    pub(crate) fn peek_response(&self, version: Version) -> PeekResponse {
         let selected_scene = self.selected_scene();
         let selected_camera = self.selected_camera();
+        // TODO: how/where do we get the format and window from?
+        let format = Format::default();
+        let window = Window::default();
 
-        let render_setting: RenderSetting = self.clone().render_setting();
+        let render_setting: RenderSetting = self.clone().render_setting(format, window);
         let current = BlenderScene::new(selected_scene, selected_camera, render_setting);
 
         PeekResponse::new(
-            version.clone(),
+            version,
             self.frame_start,
             self.frame_end,
             self.cameras.clone(),

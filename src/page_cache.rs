@@ -1,8 +1,9 @@
 use crate::constant::MAX_VALID_DAYS;
-use lazy_regex::regex_replace_all;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::io::{BufReader, ErrorKind, Error, Result};
 use std::path::Path;
+use std::sync::LazyLock;
 use std::time::Duration;
 use std::{collections::HashMap, fs, path::PathBuf, time::SystemTime};
 use url::Url;
@@ -190,12 +191,14 @@ impl PageCache {
     }
 
     fn generate_file_name(url: &Url) -> String {
+        static REPLACE_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"[/\\?%*:|."<>]"#).unwrap());
+
         let mut file_name = url.to_string();
         // Rule: find any invalid file name characters
         // remove trailing slash
         file_name.ends_with('/').then(|| file_name.pop());
         // Replace any invalid characters with hyphens
-        regex_replace_all!(r#"[/\\?%*:|."<>]"#, &file_name, "-").to_string()
+        REPLACE_REGEX.replace_all(&file_name, "-").to_string()
     }
 
     /// check and see if the url matches the cache,

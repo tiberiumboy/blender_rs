@@ -1,22 +1,26 @@
-use std::{io::{BufRead, BufReader}, path::PathBuf, process::ChildStdout};
+use std::{
+    io::{BufRead, BufReader},
+    path::PathBuf,
+    process::ChildStdout,
+};
 
-use crate::{blender::{Args, Blender, BlenderError}, models::event::{BlenderEvent, RenderEvent}};
+use crate::{
+    blender::Frame,
+    models::event::{BlenderEvent, RenderEvent},
+};
 
 #[derive(Debug)]
 pub struct BlenderProcess {
-    inner : BufReader<ChildStdout>,
-    current_frame : i32
+    inner: BufReader<ChildStdout>,
+    current_frame: Frame,
 }
 
 impl BlenderProcess {
-    pub(crate) fn new( args: Args, blender: &Blender) -> Result<BlenderProcess, BlenderError> {
-        let start_frame = args.start;
-        Ok(
-            BlenderProcess{ 
-                inner: args.invoke_blender(blender.get_executable())?,
-                current_frame: start_frame
-            }
-        )
+    pub(crate) fn new(inner: BufReader<ChildStdout>, start_frame: Frame) -> BlenderProcess {
+        BlenderProcess {
+            inner,
+            current_frame: start_frame,
+        }
     }
 
     fn child_stream_to_event(&mut self, line: String) -> BlenderEvent {
@@ -28,7 +32,10 @@ impl BlenderProcess {
                 // this seems a bit expensive?
                 let init = col[0].split(" ").next();
                 if let Some(value) = init {
-                    self.current_frame = value.replace("Fra:", "").parse().unwrap_or(self.current_frame);
+                    self.current_frame = value
+                        .replace("Fra:", "")
+                        .parse()
+                        .unwrap_or(self.current_frame);
                 }
                 let last = col.last().unwrap().trim();
                 let slice = last.split(' ').collect::<Vec<&str>>();
@@ -92,17 +99,18 @@ impl BlenderProcess {
     }
 
     pub fn read(&mut self) -> Option<BlenderEvent> {
-        let mut line = String::new(); 
-        
+        let mut line = String::new();
+
         match self.inner.read_line(&mut line) {
             Ok(len) => match len {
                 // should this be busy? or block?
+                // I wanted to be able to skip this line and continue, but avoid calling loop on itself?
                 0 => None,
                 _ => Some(self.child_stream_to_event(line)),
-            }
+            },
             Err(e) => {
                 eprintln!("Unable to process line! {e}");
-                return None
+                return None;
             }
         }
     }

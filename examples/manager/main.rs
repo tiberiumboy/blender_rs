@@ -1,7 +1,10 @@
 // here we'll provide basic cli interface controls to list, edit, add, or remove blender installations history.
 // Below the surface should follow simple implementations similar to REST api.
 
-use blender_rs::{blender::get_blend_config_from_local, blender::Blender, manager::Manager};
+use blender_rs::{
+    blender::{get_blend_config_from_local, Blender, ComputerGraphicsProgram},
+    manager::Manager,
+};
 use std::{fs, path::PathBuf};
 // TODO: I only want to use clap for examples, but not include with the whole library itself.
 use clap::{Parser, Subcommand};
@@ -9,10 +12,20 @@ use semver::Version;
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    Add { path: PathBuf },
-    ExactDownload { version: Version },
+    Add {
+        path: PathBuf,
+    },
+    Download {
+        version: Version,
+    },
     // minor can accept 0 as default (Wildcard to use latest)
-    Download { major: u64, minor: u64 },
+    Get {
+        major: u64,
+        // TODO: minor should be optional, but research on how to find the latest minor available first!
+        // For now, requires minor.
+        minor: u64,
+        patch: Option<u64>,
+    },
     // Disconnect { target: Version },
     // Delete { target: Version},
 }
@@ -45,9 +58,9 @@ struct Args {
 fn handle_download_blender(manager: &mut Manager, version: &Version) {
     match manager.fetch_blender(&version) {
         Ok(blender) => println!(
-            "[Success] Blender {} installed at {:?}",
+            "[Success] Blender {} installed at {}",
             blender.get_version(),
-            blender.get_executable()
+            blender.get_executable().to_string_lossy()
         ),
         Err(e) => eprintln!("[Fail] Unable to fetch blender {}: {:?}", &version, e),
     }
@@ -89,15 +102,25 @@ fn main() {
                     eprintln!("Unable to update existing config file! {e:?}");
                 }
             }
-            Command::ExactDownload { version } => {
+            // Download exact version from the internet.
+            Command::Download { version } => {
                 handle_download_blender(&mut manager, &version);
             }
-            // Download exact version from the internet.
-            Command::Download { major, minor } => {
+            // Here we will try and download blender from the internet.
+            Command::Get {
+                major,
+                minor,
+                patch,
+            } => {
                 // the secret trick is to use patch 0 to use the latest version available.
-                let version = Version::new(major, minor, 0);
+                // TODO: How do I fetch the latest minor version?
+                let version = Version::new(
+                    major,
+                    minor,
+                    // minor.unwrap_or_else(|| 0),
+                    patch.unwrap_or_default(),
+                );
                 handle_download_blender(&mut manager, &version);
-                // Here we will try and download blender from the internet.
             } // Command::Disconnect { target } => {
               //     todo!("We'll come back to this one... This one a bit weird and odd...");
               // },

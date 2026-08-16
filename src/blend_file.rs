@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    hash::{DefaultHasher, Hasher},
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use blend::Blend;
 use semver::Version;
@@ -11,10 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     blender::BlenderError,
     models::{
-        config::BlenderConfiguration, peek_response::PeekResponse, render_setting::RenderSetting,
-        scene_info::SceneInfo,
+        format::Format, peek_response::PeekResponse, render_setting::RenderSetting,
+        scene_info::SceneInfo, window::Window,
     },
-    utils::get_config_folder_path,
 };
 
 // A struct to hold valid blend file with compatible partial version.
@@ -29,47 +24,50 @@ pub struct BlendFile {
 }
 
 impl BlendFile {
-    fn get_script_path() -> Result<PathBuf, BlenderError> {
-        Ok(get_config_folder_path()
-            .map_err(BlenderError::IoError)?
-            .join("render.py"))
-    }
+    pub fn try_from(blend_file_path: impl AsRef<Path>) -> Result<Self, BlenderError> {
+        let file_path = blend_file_path.as_ref();
 
-    fn calculate_checksum(input: &[u8]) -> u64 {
-        let mut hash = DefaultHasher::new();
-        for bit in input {
-            hash.write_u8(*bit);
+        // .expect() was found and called if the file does not exist inside blend crate.
+        // Instead of creating a pull request, the crate expects application developer to verify the file integrity and validation beforehand.
+        // Throw an error here if the file do not exist.
+        if !file_path.exists() || !file_path.is_file() {
+            return Err(BlenderError::InvalidFile(
+                "Blend file not found!".to_owned(),
+            ));
         }
-        hash.finish()
-    }
 
-    pub fn try_from(blend_file_path: impl AsRef<Path> ) -> Result<Self, BlenderError> {
-        let blend = Blend::from_path(&blend_file_path).map_err(|e| {
+        // An issue here where Blend::from_path will panic if the provided file path do not exist or invalid. It is gracefully handle in the line above.
+        let blend = Blend::from_path(file_path).map_err(|e| {
             BlenderError::InvalidFile(format!("Received BlendParseError! {e:?}").to_owned())
         })?;
 
         let version = &blend.blend.header.version;
         let major = version.major;
         let minor = version.minor;
+        // TODO: Where/how do we load format and windows from?
+        let format = Format::default();
+        let window = Window::default();
 
-        let scene_info = SceneInfo::default().process(&blend)?;
-        let render_setting = scene_info.clone().render_setting();
+        let scene_info = SceneInfo::process(&blend)?;
+        let render_setting = scene_info.clone().render_setting(format, window);
         let inner = blend_file_path.as_ref().to_path_buf();
 
-        Ok(BlendFile::new(inner,
+        Ok(BlendFile::new(
+            inner,
             major,
             minor,
             scene_info,
-            render_setting
+            render_setting,
         ))
     }
 
-    fn new(inner: PathBuf,
-            major: u16,
-            minor: u16,
-            scene_info: SceneInfo,
-            render_setting: RenderSetting
-            ) -> Self {
+    fn new(
+        inner: PathBuf,
+        major: u16,
+        minor: u16,
+        scene_info: SceneInfo,
+        render_setting: RenderSetting,
+    ) -> Self {
         BlendFile {
             inner,
             major,
@@ -83,53 +81,13 @@ impl BlendFile {
         (self.major, self.minor)
     }
 
-    pub fn peek_response(&self, version: Option<&Version>) -> PeekResponse {
-        let last_version = match version {
-            Some(v) => v,
-            None => &Version::new(self.major.into(), self.minor.into(), 0),
-        };
+    pub fn peek_response(&self) -> PeekResponse {
+        let last_version = Version::new(self.major.into(), self.minor.into(), 0);
         self.scene_info.peek_response(last_version)
     }
 
     pub fn to_path(&self) -> &Path {
         self.inner.as_path()
-    }
-
-    pub fn setup_args(&self, settings: &BlenderConfiguration) -> Result<Vec<String>, BlenderError> {
-        let script_path = Self::get_script_path()?;
-        let data = include_bytes!("./render.py");
-        if !script_path.exists() {
-            fs::write(&script_path, data).map_err(BlenderError::IoError)?;
-        } else {
-            let content = fs::read(&script_path).map_err(BlenderError::IoError)?;
-            let source = Self::calculate_checksum(data);
-            let target = Self::calculate_checksum(&content);
-            if source != target {
-                fs::write(&script_path, data).map_err(BlenderError::IoError)?;
-            }
-        }
-
-        let path = self.to_path().as_os_str().to_os_string();
-        // provide the configuration in json format
-        let content = serde_json::to_string(settings)
-            .map_err(|e| BlenderError::InvalidFile(e.to_string()))?;
-
-        Ok(vec![
-            "--factory-startup".to_owned(),
-            "-noaudio".into(),
-            "-b".into(),
-            fs::canonicalize(path)
-                .unwrap()
-                .to_str()
-                .unwrap_or_default()
-                .to_owned(),
-            "-P".into(),
-            script_path.to_str().unwrap().into(),
-            "--".into(),
-            "-c".into(),
-            // does this handle escaped characters?
-            content,
-        ])
     }
 }
 
@@ -179,5 +137,38 @@ pub(crate) mod tests {
             scene_info,
             render_setting,
         }
+    }
+
+    pub(crate) fn get_default_example_path() -> PathBuf {
+        let file = PathBuf::from("./examples/assets/test.blend");
+        if !file.exists() {
+            panic!(
+                "Example file do not exist! Please do not remove the example file from the repo!"
+            )
+        }
+        file
+    }
+
+    #[test]
+    fn assure_blend_file_succeed_with_example() {
+        let good_file = BlendFile::try_from(get_default_example_path());
+        assert!(good_file.is_ok());
+    }
+
+    #[test]
+    fn assure_blend_file_existance_fails() {
+        let bad_file = BlendFile::try_from(PathBuf::new()); // should fail.
+        assert!(bad_file.is_err());
+    }
+
+    #[test]
+    fn assure_blend_file_only() {
+        let mut example_path = get_default_example_path();
+        // replace .blend to .txt
+        // then call the function to make sure that blend service rejects non .blend formats.
+        assert!(example_path.set_extension(".txt".to_owned()));
+
+        let blend_file = BlendFile::try_from(example_path);
+        assert!(blend_file.is_err());
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    blender::{Blender, BlenderError},
+    blender::{Blender, BlenderError, ComputerGraphicsProgram},
     services::packages::{package::PackageT, BlenderPath},
 };
 use semver::Version;

@@ -57,19 +57,18 @@ WARN:
 
 use crate::blender_process::BlenderProcess;
 pub use crate::manager::{Manager, ManagerError};
-pub use crate::models::args::Args;
-pub use crate::models::blender_config::BlenderConfig;
+pub use crate::models::{args::Args, blender_config::BlenderConfig};
 pub use crate::utils::get_blend_config_from_local;
+use crate::utils::get_config_folder_path;
 
-#[cfg(test)]
-use blend::Instance;
-use lazy_regex::regex_captures;
+use regex::Regex;
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
-use std::num::ParseIntError;
+use std::hash::{DefaultHasher, Hasher};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{ChildStdout, Command, Stdio};
+use std::sync::LazyLock;
+use std::{fmt::Display, fs, io::BufReader, num::ParseIntError};
 
 pub type Frame = i32;
 
@@ -82,6 +81,7 @@ pub enum BlenderError {
     PythonError(String),
     ServiceOffline,
     ParseInt(ParseIntError),
+    // Scary, find out if there's a better way to handle this?
     IoError(std::io::Error),
 }
 
@@ -102,6 +102,22 @@ impl Display for BlenderError {
             BlenderError::IoError(io_error) => f.write_str(&io_error.to_string()),
         }
     }
+}
+
+// TODO: I want to avoid making this trait public as this is only used for Blender.
+// Making this as a public trait expose opportunity for developers to implement their custom computer graphic programs instead of Blender as intended.
+// The only reason for this trait was to use for unit testing, providing code coverage for this library usage.
+// Otherwise, a Mock struct would have to be created to mimic the original object solely for unit testing.
+pub trait ComputerGraphicsProgram {
+    fn get_relative_path(&self) -> &Path;
+    // TODO: extract args as trait
+    // TODO: convert BlenderProcess into trait
+    fn render(&self, args: Args) -> Result<BlenderProcess, BlenderError>;
+    // TODO: Return trait type instead
+    // fn from_executable<CG: ComputerGraphicsProgram>(executable: impl AsRef<Path>) -> Result<CG, IoError>
+    fn from_executable(executable: impl AsRef<Path>) -> Result<Blender, BlenderError>;
+    fn get_executable(&self) -> &Path;
+    fn get_version(&self) -> &Version;
 }
 
 // [Note] In the sense of PartialOrd, Ord - Blender's executable would not matter if the version is identical.
@@ -133,9 +149,8 @@ impl Ord for Blender {
     }
 }
 
+/* Private method impl */
 impl Blender {
-    /* Private method impl */
-
     /// Create a new blender struct with provided path and version. This does not checked and enforced!
     ///
     /// # Examples
@@ -143,16 +158,16 @@ impl Blender {
     /// use blender::Blender;
     /// let blender = Blender::new(PathBuf::from("path/to/blender"), Version::new(4,1,0));
     /// ```
-    pub(crate) fn new(executable: PathBuf, version: Version) -> Self {
+    fn new(executable: impl AsRef<Path>, version: Version) -> Self {
         Self {
-            executable,
+            executable: executable.as_ref().to_path_buf(),
             version,
         }
     }
 
     #[inline]
-    fn handle_parse(names: &str) -> Result<u64, BlenderError> {
-        names.parse().map_err(BlenderError::ParseInt)
+    fn handle_parse(value: &str) -> Result<u64, BlenderError> {
+        value.parse().map_err(BlenderError::ParseInt)
     }
 
     /// Obtain the version by invoking version command to blender directly.
@@ -165,23 +180,49 @@ impl Blender {
     /// # Errors
     /// * InvalidData - executable path do not exist or is invalid. Please verify that the path provided exist and not compressed.
     ///  This error also serves where the executable is unable to provide the blender version.
-    fn check_version(executable_path: impl AsRef<Path>) -> Result<Self, BlenderError> {
+    fn check_version(executable_path: impl AsRef<Path>) -> Result<Blender, BlenderError> {
+        #[cfg(target_os = "macos")]
+        use crate::utils::MACOS_PATH;
+
+        static VERSION_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(r"Blender (?<major>[0-9]).(?<minor>[0-9]).(?<patch>[0-9])").unwrap()
+        });
+
+        // check and verify that the executable exist.
+        // first line for validating blender executable.
         let exec_path = executable_path.as_ref();
-        let output = Command::new(exec_path).arg("-v").output().map_err(|e| {
-            eprintln!("Received output error(s)? {e:?}");
-            BlenderError::ExecutableInvalid
-        })?;
-        let stdout = String::from_utf8(output.stdout).unwrap();
-        match regex_captures!(
-            r"Blender (?<major>[0-9]).(?<minor>[0-9]).(?<patch>[0-9])",
-            &stdout
-        ) {
-            Some((_, major, minor, patch)) => {
-                let maj = Self::handle_parse(major)?;
-                let min = Self::handle_parse(minor)?;
-                let pat = Self::handle_parse(patch)?;
-                let version = Version::new(maj, min, pat);
-                let blender = Self::new(exec_path.to_path_buf(), version);
+
+        // path must exist!
+        if !exec_path.exists() {
+            return Err(BlenderError::ExecutableNotFound(exec_path.into()));
+        }
+
+        // macOS is special. To invoke the blender application, I need to navigate inside Blender.app, which is an app bundle that contains stuff to run blender.
+        // Command::Process needs to access the content inside app bundle to perform the operation correctly.
+        // To do this - I need to append additional path args to correctly invoke the right application for this to work.
+        #[cfg(target_os = "macos")]
+        let exec_path = if !&exec_path.ends_with(MACOS_PATH) {
+            &exec_path.join(MACOS_PATH)
+        } else {
+            exec_path
+        };
+
+        let output = Command::new(exec_path)
+            .arg("-v")
+            .output()
+            .map_err(BlenderError::IoError)?;
+
+        // TODO: remove expect()
+        let stdout = String::from_utf8(output.stdout)
+            .expect("Should be able to read string content from this program!");
+        match VERSION_REGEX.captures(&stdout) {
+            Some(cap) => {
+                let (_, [major, minor, patch]) = cap.extract();
+                let major = Self::handle_parse(major)?;
+                let minor = Self::handle_parse(minor)?;
+                let patch = Self::handle_parse(patch)?;
+                let version = Version::new(major, minor, patch);
+                let blender = Blender::new(exec_path, version);
                 Ok(blender)
             }
             None => {
@@ -191,11 +232,60 @@ impl Blender {
         }
     }
 
+    /// desire location to load blender python script file from. This is also used to verify checksums.
+    fn get_script_path() -> Result<PathBuf, BlenderError> {
+        Ok(get_config_folder_path()
+            .map_err(BlenderError::IoError)?
+            .join("render.py"))
+    }
+
+    /// Used to verify the integrity of the python file we rely on invoking the blender jobs.
+    fn calculate_checksum(input: &[u8]) -> u64 {
+        let mut hash = DefaultHasher::new();
+        for bit in input {
+            hash.write_u8(*bit);
+        }
+        hash.finish()
+    }
+
+    /// Invoke blender with the provided arguments.
+    fn invoke(&self, args: Args) -> Result<BufReader<ChildStdout>, BlenderError> {
+        let script_path = Self::get_script_path()?;
+        let data = include_bytes!("./render.py");
+        // design to ensure the python script is up to date and matches with this BlendFarm internal script version.
+        // This is to prevent unauthorized script changes made by clients.
+        if !script_path.exists() {
+            fs::write(&script_path, data).map_err(BlenderError::IoError)?;
+        } else {
+            let content = fs::read(&script_path).map_err(BlenderError::IoError)?;
+            let source = Self::calculate_checksum(data);
+            let target = Self::calculate_checksum(&content);
+            if source != target {
+                fs::write(&script_path, data).map_err(BlenderError::IoError)?;
+            }
+        }
+
+        let col = &args.generate_arg_command(script_path)?;
+        let stdout = Command::new(&self.executable)
+            .args(col)
+            .stdout(Stdio::piped())
+            .spawn()
+            .map_err(BlenderError::IoError)?
+            .stdout
+            .ok_or(BlenderError::RenderError(
+                "Unable to retrieve std output!".to_owned(),
+            ))?;
+
+        Ok(BufReader::new(stdout))
+    }
+}
+
+impl ComputerGraphicsProgram for Blender {
     // the difference between this function and getting executable are
     // a) MacOs is special. Executable reference a path inside app bundle.
     // b) This returns valid dir location to open to for user to look at from file POV
     // TODO: Remove all of this unwrap nightmare.
-    pub fn get_relative_path(&self) -> &Path {
+    fn get_relative_path(&self) -> &Path {
         if cfg!(target_os = "macos") {
             &self
                 .executable
@@ -213,12 +303,12 @@ impl Blender {
     }
 
     /// Return the executable path to blender (Entry point for CLI)
-    pub fn get_executable(&self) -> &Path {
+    fn get_executable(&self) -> &Path {
         &self.executable
     }
 
     /// Return validated Blender Version
-    pub fn get_version(&self) -> &Version {
+    fn get_version(&self) -> &Version {
         &self.version
     }
 
@@ -232,43 +322,59 @@ impl Blender {
     /// # Examples
     /// ```
     /// use blender::Blender;
-    /// let blender = Blender::from_executable(Pathbuf::from("../examples/")).unwrap();
+    /// let blender = ComputerGraphicsProgram<Blender>::from_executable(Pathbuf::from("../examples/")).unwrap();
     /// ```
-    pub fn from_executable(executable: impl AsRef<Path>) -> Result<Self, BlenderError> {
-        #[cfg(target_os = "macos")]
-        use crate::utils::MACOS_PATH;
-
-        // check and verify that the executable exist.
-        // first line for validating blender executable.
-        let path = executable.as_ref();
-
-        // macOS is special. To invoke the blender application, I need to navigate inside Blender.app, which is an app bundle that contains stuff to run blender.
-        // Command::Process needs to access the content inside app bundle to perform the operation correctly.
-        // To do this - I need to append additional path args to correctly invoke the right application for this to work.
-        #[cfg(target_os = "macos")]
-        let path = if !&path.ends_with(MACOS_PATH) {
-            &path.join(MACOS_PATH)
-        } else {
-            path
-        };
-
-        // this should be clear and explicit that I must have a valid path?
-        if !path.exists() {
-            return Err(BlenderError::ExecutableNotFound(path.to_path_buf()));
-        }
-
-        let blender = Self::check_version(path)?;
-        Ok(blender)
+    fn from_executable(executable: impl AsRef<Path>) -> Result<Blender, BlenderError> {
+        Self::check_version(executable)
     }
 
-    // this is used to read and see blend file friendly view mode
-    #[cfg(test)]
+    /// Render one frame - can we make the assumption that ProjectFile may have configuration predefined Or is that just a system global setting to apply on?
+    /// # Examples
+    /// ```
+    /// use blender::Blender;
+    /// use blender::args::Args;
+    /// let blender = Blender::from_executable("path/to/blender").unwrap();
+    /// let args = Args::new(PathBuf::from("path/to/project.blend"), PathBuf::from("path/to/output.png"));
+    /// let final_output = blender.render(&args).unwrap();
+    /// ```
+    // so instead of just returning the string of render result or blender error, we'll simply use the single producer to produce result from this class.
+    // issue here is that we need to lock thread. If we are rendering, we need to be able to call abort.
+    fn render(&self, args: Args) -> Result<BlenderProcess, BlenderError> {
+        let start_frame = args.start;
+        // I received a No such file or directory error here?
+        let child_proc = self.invoke(args)?;
+        Ok(BlenderProcess::new(child_proc, start_frame))
+    }
+}
+
+// TODO: impl unit test for blender specifically.
+#[cfg(test)]
+mod test {
+    use super::*;
+    use blend::Instance;
+
+    fn mock_blender(path: Option<PathBuf>, version: Version) -> Blender {
+        match path {
+            Some(executable) => Blender {
+                executable,
+                version,
+            },
+            None => Blender {
+                executable: PathBuf::new(),
+                version,
+            },
+        }
+    }
+
+    // this is used to read and preview raw values from blendfile in cli friendly view mode
     #[allow(dead_code)]
     fn explore_value<'a>(obj: &Instance<'a>) {
+        use blend::parsers::field::FieldInfo;
+
         for i in &obj.fields {
             match i.1.is_primitive {
                 true => match i.1.info {
-                    blend::parsers::field::FieldInfo::Value => {
+                    FieldInfo::Value => {
                         match i.1.type_name.as_str() {
                             "int" => {
                                 println!("{}: {} = {} ", i.0, i.1.type_name, &obj.get_i32(i.0));
@@ -288,19 +394,17 @@ impl Blender {
                             _ => println!("Unhandle value for {} | {}", i.1.type_name, i.0),
                         };
                     }
-                    blend::parsers::field::FieldInfo::ValueArray { .. } => {
-                        match i.1.type_name.as_str() {
-                            "char" => {
-                                println!("{}: String = {}", i.0, &obj.get_string(i.0));
-                            }
-                            "float" => {
-                                println!("{}: vec<f32> = {:?}", i.0, &obj.get_f32_vec(i.0));
-                            }
-                            _ => {
-                                println!("Unhandle Value Array for {} | {}", i.1.type_name, i.0)
-                            }
+                    FieldInfo::ValueArray { .. } => match i.1.type_name.as_str() {
+                        "char" => {
+                            println!("{}: String = {}", i.0, &obj.get_string(i.0));
                         }
-                    }
+                        "float" => {
+                            println!("{}: vec<f32> = {:?}", i.0, &obj.get_f32_vec(i.0));
+                        }
+                        _ => {
+                            println!("Unhandle Value Array for {} | {}", i.1.type_name, i.0)
+                        }
+                    },
                     _ => {
                         println!("Unhandle: {} | {} ", i.0, i.1.type_name)
                     }
@@ -312,50 +416,8 @@ impl Blender {
         }
     }
 
-    /// Render one frame - can we make the assumption that ProjectFile may have configuration predefined Or is that just a system global setting to apply on?
-    /// # Examples
-    /// ```
-    /// use blender::Blender;
-    /// use blender::args::Args;
-    /// let blender = Blender::from_executable("path/to/blender").unwrap();
-    /// let args = Args::new(PathBuf::from("path/to/project.blend"), PathBuf::from("path/to/output.png"));
-    /// let final_output = blender.render(&args).unwrap();
-    /// ```
-    // so instead of just returning the string of render result or blender error, we'll simply use the single producer to produce result from this class.
-    // issue here is that we need to lock thread. If we are rendering, we need to be able to call abort.
-    pub fn render(&self, args: Args) -> Result<BlenderProcess, BlenderError> {
-        // I'm not even sure why we have two mpsc here for setup_listening_blender to use?
-        Ok(BlenderProcess::new(args, &self)?)
-    }
-    // TODO: Can we use stream instead? how can we parse data from blender into recognizable style?
-}
-
-// TODO: impl unit test for blender specifically.
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    // #[test]
-    // fn should_run() {}
-
-    // #[test]
-    // fn should_render() {}
-
-    fn mock_blender(path: Option<PathBuf>, version: Version) -> Blender {
-        match path {
-            Some(executable) => Blender {
-                executable,
-                version,
-            },
-            None => Blender {
-                executable: PathBuf::new(),
-                version,
-            },
-        }
-    }
-
     #[test]
-    fn blender_match_version_succeed() {
+    fn assure_blender_match_version_succeed() {
         // https://download.blender.org/release/Blender4.0/
         let lvalue = mock_blender(None, Version::new(4, 0, 1));
         let rvalue = mock_blender(None, Version::new(4, 0, 1));
@@ -368,5 +430,11 @@ mod test {
         // newer patch, lvalue should be less than.
         let rvalue = mock_blender(None, Version::new(4, 0, 2));
         assert!(&lvalue.lt(&rvalue));
+    }
+
+    #[test]
+    fn assure_get_script_path_succeed() {
+        let path = Blender::get_script_path();
+        assert!(path.is_ok_and(|path| path.exists() && path.is_file()));
     }
 }

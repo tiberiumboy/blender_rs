@@ -1,4 +1,4 @@
-use crate::blender::Blender;
+use crate::blender::{Blender, ComputerGraphicsProgram};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{

@@ -1,5 +1,5 @@
+use core::range::Range;
 use serde::{de::Visitor, ser::SerializeStruct, Deserialize, Serialize};
-use std::ops::Range;
 
 // In the python script, this Window values gets assigned to border of scn.render.border_*
 // Here - I'm calling it as window instead.
@@ -70,5 +70,18 @@ impl<'de> Deserialize<'de> for Window {
 
         const FIELDS: &[&str] = &["X", "X2", "Y", "Y2"];
         deserializer.deserialize_struct("Window", FIELDS, WindowVisitor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn assure_deserailize_succeed() {
+        // Here we need to create some strings to run against.
+        let serialize = "Border: { X: 0.0, X2: 1.0, Y: 0.0, Y2: 1.0 }";
+        let deserialize: Result<Window, _> = serde_json::from_str(serialize);
+        assert!(deserialize.is_ok());
     }
 }

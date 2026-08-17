@@ -122,16 +122,139 @@ impl Into<PathBuf> for BlenderConfig {
 
 #[cfg(test)]
 pub mod tests {
+    use crate::blender::{self, test::mock_blender};
+
     use super::*;
 
-    pub fn mock_blender_config() -> BlenderConfig {
-        // TODO: Find a way to mock these properties?
-        let blenders = HashMap::new();
+    pub fn mock_blender_config(blender: Option<Version>) -> BlenderConfig {
+        let mut blenders = HashMap::new();
+
+        if let Some(version) = blender {
+            let blender = mock_blender(None, version.clone());
+            blenders.insert(version, blender);
+        }
+
         // TODO: Find a way to mock these properties?
         let install_path = PathBuf::new();
         BlenderConfig {
             blenders,
             install_path,
         }
+    }
+
+    #[test]
+    fn assure_get_download_destination_succeed() {
+        let config = mock_blender_config(None);
+        let get_destination = config.get_download_destination("category_folder_name".into());
+        assert_eq!(
+            config.install_path.join("category_folder_name"),
+            get_destination
+        );
+    }
+
+    #[test]
+    fn assure_get_latest_blender_available_succeed() {
+        let version = Version::new(4, 0, 0);
+        let config = mock_blender_config(Some(version.clone()));
+
+        let result = config.get_latest_blender_available(&version);
+        assert!(result.is_some_and(|b| b.get_version().eq(&version)));
+
+        let result = config.get_latest_blender_available(&Version::new(4, 1, 0));
+        assert!(result.is_none());
+
+        let result = config.get_latest_blender_available(&Version::new(4, 0, 1));
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn assure_get_blender_succeed() {
+        let version = Version::new(4, 0, 0);
+        let config = mock_blender_config(Some(version.clone()));
+
+        let result = config.get_blender(&version);
+        assert!(result.is_some());
+
+        let result = config.get_blender(&Version::new(4, 0, 1));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn assure_insert_blender_succeed() {
+        let version = Version::new(4, 0, 0);
+        let blender = mock_blender(None, version.clone());
+        let mut config = mock_blender_config(None);
+
+        config.insert_blender(&blender);
+        assert!(config.get_blender(&version).is_some());
+    }
+
+    #[test]
+    fn assure_remove_blender() {
+        let version = Version::new(4, 0, 0);
+        let blender = mock_blender(None, version.clone());
+        let mut config = mock_blender_config(Some(version.clone()));
+
+        config.remove_blender(&blender);
+
+        assert!(config.blenders.iter().count() == 0);
+    }
+
+    #[test]
+    fn assure_remove_invalid_blender() {
+        // append a invalid blender version
+        let mut config = mock_blender_config(Some(Version::new(4, 0, 0)));
+        // call to remove invalid blender
+        config.remove_invalid_blender();
+        // should hold no blender in mockup
+        assert!(config.blenders.iter().count() == 0);
+    }
+
+    #[test]
+    fn assure_get_blender_partial_success() {
+        let major = 4;
+        let minor = 1;
+        let version = Version::new(major, minor, 1);
+        // TODO: Add more blender version and run unit test for version greater than comparison in major and minor
+        let config = mock_blender_config(Some(version.clone()));
+
+        let result = config.get_blender_partial(major, minor);
+        assert!(result.is_some());
+
+        let result = config.get_blender_partial(major, minor + 1);
+        assert!(result.is_none());
+
+        let result = config.get_blender_partial(major, minor - 1);
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn assure_get_blenders_success() {
+        let version = Version::new(4, 0, 1);
+        let config = mock_blender_config(Some(version.clone()));
+        let mut list = config.get_blenders();
+        assert!(list.pop().is_some_and(|b| b.get_version().eq(&version)));
+    }
+
+    #[test]
+    fn assure_set_install_path_succeed() {
+        let mut config = mock_blender_config(None);
+        let new_install_location = PathBuf::from("/tmp");
+        config.set_install_path(new_install_location.clone());
+        assert!(config.install_path.eq(&new_install_location));
+    }
+
+    #[test]
+    fn assure_blender_config_default_succeed() {
+        let config = BlenderConfig::default();
+        assert_eq!(config.blenders, HashMap::new());
+        assert!(config.install_path.exists());
+    }
+
+    #[test]
+    fn assure_into_path_succeed() {
+        let config = mock_blender_config(None);
+        let path: PathBuf = config.clone().into();
+        assert_eq!(path, config.install_path);
     }
 }

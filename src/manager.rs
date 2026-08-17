@@ -193,7 +193,7 @@ pub mod tests {
     use crate::services::portal::tests::mock_portal;
 
     pub fn mock_manager() -> Manager {
-        let config = mock_blender_config();
+        let config = mock_blender_config(None);
         let portal = mock_portal();
         Manager { config, portal }
     }

@@ -349,11 +349,12 @@ impl ComputerGraphicsProgram for Blender {
 
 // TODO: impl unit test for blender specifically.
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use super::*;
     use blend::Instance;
 
-    fn mock_blender(path: Option<PathBuf>, version: Version) -> Blender {
+    // must be accessible within crate for unit test purposes.
+    pub(crate) fn mock_blender(path: Option<PathBuf>, version: Version) -> Blender {
         match path {
             Some(executable) => Blender {
                 executable,

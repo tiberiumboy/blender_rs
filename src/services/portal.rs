@@ -6,7 +6,7 @@ use regex::Regex;
 use semver::Version;
 use std::env::consts::{ARCH, OS};
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
 use url::Url;
 
 // I want this struct to remain private.
@@ -21,6 +21,8 @@ pub(crate) struct Portal {
     download_path: PathBuf,
 }
 
+static BASE_URL: OnceLock<Url> = OnceLock::new();
+
 impl Portal {
     const ROOT_URL: &str = "https://download.blender.org/release/";
 
@@ -31,17 +33,16 @@ impl Portal {
         }
     }
 
-    // Only used in this state.
+    // Only used in this state. also using for unit test
     #[inline]
     fn get_parent(major: u64, minor: u64) -> String {
         format!("Blender{major}.{minor}")
     }
 
     fn get_base_url() -> Url {
-        static PARENT: LazyLock<Url> = LazyLock::new(|| 
-            Url::parse(Portal::ROOT_URL).expect("const should parse correctly?")
-        );
-        PARENT.clone()
+        BASE_URL
+            .get_or_init(|| Url::parse(Portal::ROOT_URL).expect("const should parse correctly?"))
+            .clone()
     }
 
     // function generator for closures in regex patterns.
@@ -100,7 +101,6 @@ impl Portal {
         let mut list = iter.map(|c| c.extract()).fold(
             Vec::new(),
             |mut map: Vec<BlenderCategory>, (_, [url, major, minor])| {
-
                 let major: u64 = match major.parse() {
                     // TODO: Review this logic and see if it make sense? Are we excluding only 3?
                     Ok(val) if val >= 3 => val,
@@ -254,6 +254,10 @@ pub mod tests {
         Portal::get_base_url()
     }
 
+    pub fn mock_get_parent(major: u64, minor: u64) -> String {
+        Portal::get_parent(major, minor)
+    }
+
     #[test]
     fn assure_new_succeed() {
         let portal = mock_portal(None);
@@ -263,7 +267,7 @@ pub mod tests {
 
     #[test]
     fn assure_get_parent_succeed() {
-        let str = Portal::get_parent(5,2);
+        let str = Portal::get_parent(5, 2);
         assert_eq!("Blender5.2", str);
     }
 
@@ -275,7 +279,6 @@ pub mod tests {
 
     #[test]
     fn assure_generate_blender_category_succeed() {
-
         let base = Url::parse(Portal::ROOT_URL).expect("Should parse successfully?");
         let url = "Blender5.2/";
         let major = 5;
@@ -284,13 +287,14 @@ pub mod tests {
         let download_path = PathBuf::new();
         let mut cache = PageCache::default();
 
-        let category = Portal::generate_blender_category(&base, url, major, minor, &download_path, &mut cache );
+        let category =
+            Portal::generate_blender_category(&base, url, major, minor, &download_path, &mut cache);
         assert!(category.is_some());
     }
 
     // #[test]
     // fn assure_successful_blender_download() {
     //     let download_path = PathBuf::new(); // TODO: Find a place to download and save blender.
-    //     let portal = mock_portal(Some(download_path));   
+    //     let portal = mock_portal(Some(download_path));
     // }
 }

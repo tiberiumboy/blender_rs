@@ -115,3 +115,36 @@ impl BlenderProcess {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        io::BufReader,
+        process::{Command, Stdio},
+    };
+
+    use crate::blender_process::BlenderProcess;
+
+    fn mock_blender_process() -> BlenderProcess {
+        // in this case, we'd just echo some examples provided to ensure unit test works as intended.
+        let mut cmd = Command::new("sh")
+            .arg("-c")
+            .arg("echo Blender 5.2.0")
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Must be able to echo command output!");
+        let stdout = cmd.stdout.take().expect("Must have valid handler");
+        let inner = BufReader::new(stdout);
+        let start_frame = 1;
+        BlenderProcess::new(inner, start_frame)
+    }
+
+    #[test]
+    fn assure_read_succeed() {
+        let mut process = mock_blender_process();
+        let some_data = process.read();
+        assert!(some_data.is_some());
+        let empty = process.read();
+        assert!(empty.is_none());
+    }
+}

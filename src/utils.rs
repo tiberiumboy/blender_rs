@@ -85,11 +85,15 @@ mod tests {
     fn assure_get_valid_arch_succeed() {
         let arch = get_valid_arch();
         assert!(arch.is_ok());
+
+        // TODO: Find out how to generate an error?
     }
 
     #[test]
     fn assure_get_valid_ext_succeed() {
         let ext = get_extension();
         assert!(ext.is_ok());
+
+        // TODO: Find out how to generate an error?
     }
 }

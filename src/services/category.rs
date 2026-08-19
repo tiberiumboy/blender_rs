@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::env::consts;
 use std::io::Error as IoError;
 use std::path::Path;
-use std::sync::LazyLock;
+use std::sync::OnceLock;
 use url::Url;
 
 // I have a situation where I can create this object, but not yet populate the download list.
@@ -35,6 +35,7 @@ pub(crate) struct BlenderCategory {
     links: HashMap<Version, Package>,
 }
 
+// Partial order based on major and minor version of blender category
 impl PartialOrd for BlenderCategory {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let result = match self.major.cmp(&other.major) {
@@ -54,6 +55,7 @@ impl Ord for BlenderCategory {
     }
 }
 
+// Because Blender category is based on urls, we must compare equal from the source of string instead.
 impl PartialEq for BlenderCategory {
     fn eq(&self, other: &Self) -> bool {
         self.base_url.cmp(&other.base_url).is_eq()
@@ -61,6 +63,8 @@ impl PartialEq for BlenderCategory {
 }
 
 impl Eq for BlenderCategory {}
+
+static CONTENT_REGEX_EXTRACT: OnceLock<Regex> = OnceLock::new();
 
 // content of https://download.blender.org/release/Blender{major}.{minor}/
 impl BlenderCategory {
@@ -73,20 +77,18 @@ impl BlenderCategory {
         base_url: &Url,
         download_path: impl AsRef<Path>,
     ) -> Result<HashMap<Version, Package>, BlenderCategoryError> {
-        static CONTEXT_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(
-                r#"<a href="(?<url>\w*-(?<major>\d*).(?<minor>\d*).(?<patch>\d*.)-(?<os>\w.*)-(?<arch>\w*)\.(?<ext>.*))">"#,
-            ).unwrap()
-        });
-
         let current_arch =
             get_valid_arch().map_err(|e| BlenderCategoryError::InvalidArch(e.into()))?;
+
         let valid_ext =
             get_extension().map_err(|e| BlenderCategoryError::UnsupportedOS(e.into()))?;
 
         // The rule has changed. The extension will not include a period symbol. Additional period will be treated as extension of extension, e.g. tar.xz
-        let iter = CONTEXT_REGEX.captures_iter(&content);
-        let links = iter.map(|c| c.extract()).fold(
+        let iter = CONTENT_REGEX_EXTRACT.get_or_init(||Regex::new(
+                r#"<a href="(?<url>\w*-(?<major>\d*).(?<minor>\d*).(?<patch>\d*.)-(?<os>\w.*)-(?<arch>\w*)\.(?<ext>.*))">"#,
+            ).unwrap());
+
+        let links = iter.captures_iter(&content).map(|c| c.extract()).fold(
             HashMap::new(),
             |mut map, (_, [url, major, minor, patch, os, arch, ext])| {
                 // Check and see if the extension is valid
@@ -158,8 +160,12 @@ impl BlenderCategory {
         Ok(links)
     }
 
-    // TODO: consider making this private?
-    pub fn new(base_url: Url, major: u64, minor: u64, links: HashMap<Version, Package>) -> Self {
+    pub(crate) fn new(
+        base_url: Url,
+        major: u64,
+        minor: u64,
+        links: HashMap<Version, Package>,
+    ) -> Self {
         Self {
             base_url,
             major,
@@ -236,5 +242,41 @@ impl BlenderCategory {
     // return the version range for this category
     pub fn get_version(&self) -> Version {
         Version::new(self.major, self.minor, 0) // will always be the lowest patch for category only.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::services::portal::tests::{mock_base_url, mock_get_parent};
+
+    use super::*;
+
+    #[test]
+    fn assure_parse_content_succeed() {}
+
+    pub(crate) fn mock_blender_category() -> BlenderCategory {
+        let url = mock_base_url();
+        let major = 4;
+        let minor = 2;
+        let base_url = url
+            .join(&mock_get_parent(major, minor))
+            .expect("Should join successfully");
+        BlenderCategory::new(base_url, major, minor, Default::default())
+    }
+
+    #[test]
+    fn assure_get_version_succeed() {
+        let category = mock_blender_category();
+        let target_version = Version::new(category.major, category.minor, 0);
+        let result = category.get_version();
+        assert_eq!(result, target_version);
+    }
+
+    #[test]
+    fn assure_get_package_succeed() {
+        // because we're using mock version, there's no package loaded.
+        let category = mock_blender_category();
+        let result = category.get_packages();
+        assert!(result.is_empty());
     }
 }

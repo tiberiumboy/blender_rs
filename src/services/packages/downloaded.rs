@@ -192,17 +192,25 @@ impl PackageT for Downloaded {
 pub(crate) mod tests {
     use std::{fs, str::FromStr};
 
-use url::Url;
+    use url::Url;
 
-use super::*;
+    use super::*;
 
     pub(crate) fn mock_downloaded() -> Downloaded {
         let path = PathBuf::from_str("./").expect("Should be valid for unit test purposes");
         let path = fs::canonicalize(path).expect("Should expand path fully");
-        let download_url = Url::from_directory_path(path.clone()).expect("Should be valid for unit test purposes");
-        
-        let download_link = DownloadLink { version: Version::new(4,0,1), file_name: "Test".to_owned(), download_url };
-        Downloaded { content: path.to_path_buf(), origin: download_link }
+        let download_url =
+            Url::from_directory_path(path.clone()).expect("Should be valid for unit test purposes");
+
+        let download_link = DownloadLink {
+            version: Version::new(4, 0, 1),
+            file_name: "Test".to_owned(),
+            download_url,
+        };
+        Downloaded {
+            content: path.to_path_buf(),
+            origin: download_link,
+        }
     }
 
     #[test]
@@ -216,11 +224,11 @@ use super::*;
     fn assure_get_content_path_succeed() {
         let downloaded = mock_downloaded();
         let result = downloaded.get_content_path();
-        
+
         assert!(result.is_ok());
     }
 
-    // TODO: impl a temp compress file 
+    // TODO: impl a temp compress file
     // #[test]
     // fn assure_extract_content_succeed() {
 
@@ -233,18 +241,14 @@ use super::*;
     }
 
     #[test]
-    fn assure_check_unpacked_succeed() {
-        
-    }
+    fn assure_check_unpacked_succeed() {}
 
     #[test]
-    fn assure_extract_succeed() {
-
-    }
+    fn assure_extract_succeed() {}
 
     #[test]
     fn assure_get_extension_succeed() {
         let extension = get_extension();
         assert!(extension.is_ok());
     }
-}   
+}

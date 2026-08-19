@@ -100,19 +100,66 @@ impl BlenderPath for Package {
 mod tests {
     use std::{fs, path::PathBuf};
 
-use crate::services::packages::download_link::tests::mock_downloadlink;
     use super::*;
+    use crate::services::packages::{
+        bundle::tests::mock_bundle, download_link::tests::mock_downloadlink,
+    };
+
+    fn create_destination() -> PathBuf {
+        fs::canonicalize(PathBuf::from("./")).expect("Must have a valid destination path!")
+    }
 
     #[test]
     fn assure_check_package_succeed() {
         let link = mock_downloadlink();
-        let destination = fs::canonicalize(PathBuf::from("./")).unwrap();
+        let destination = create_destination();
         let result = Package::check_package(link, destination);
         assert!(result.is_ok());
     }
 
-    // #[test]
-    // fn assure_get_version_succeed() {
-        
-    // }
+    #[test]
+    fn assure_get_package_ready_succeed() {
+        // TODO: find a way to test all Package enum without downloading from Blender?
+        let bundle = mock_bundle();
+        let package = Package::Bundle(bundle);
+        let destination = create_destination();
+        let result = package.get_package_ready(&destination);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn assure_get_version_succeed() {
+        let bundle = mock_bundle();
+        let package = Package::Bundle(bundle.clone());
+
+        let version = package.get_version();
+        assert_eq!(version, bundle.get_version());
+    }
+
+    #[test]
+    fn assure_invalid_get_version_return_none() {
+        let download_link = mock_downloadlink();
+        let package = Package::Metadata(download_link.clone());
+
+        let version = package.get_version();
+        assert_eq!(version, &download_link.version);
+    }
+
+    #[test]
+    fn assure_get_blender_succeed() {
+        let bundle = mock_bundle();
+        let package = Package::Bundle(bundle);
+        let result = package.get_blender();
+        // TODO: Find a way to ensure is_ok() returns
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn assure_invalid_blender_return_none() {
+        let download_link = mock_downloadlink();
+        let package = Package::Metadata(download_link);
+
+        let result = package.get_blender();
+        assert!(result.is_none());
+    }
 }

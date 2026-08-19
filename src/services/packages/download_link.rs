@@ -34,6 +34,7 @@ impl DownloadLink {
         })
     }
 
+    #[inline]
     fn download_path(&self, install_path: impl AsRef<Path>) -> PathBuf {
         install_path.as_ref().join(&self.file_name)
     }
@@ -62,6 +63,7 @@ impl DownloadLink {
 
         // Check and see if we haven't download the file already
         if !target.exists() {
+            // Here we make the call to attohttpc
             // Download the file from the internet
             let response = attohttpc::get(self.download_url.as_str())
                 .send()
@@ -88,12 +90,6 @@ impl PackageT for DownloadLink {
     }
 }
 
-impl AsRef<Version> for DownloadLink {
-    fn as_ref(&self) -> &Version {
-        &self.version
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -103,26 +99,40 @@ pub(crate) mod tests {
         let file_name = "test_file.txt".to_owned();
         let example = fs::canonicalize(PathBuf::from("./")).unwrap();
         let download_url = Url::from_file_path(example.clone()).unwrap();
-        DownloadLink { version, file_name, download_url }
+        DownloadLink {
+            version,
+            file_name,
+            download_url,
+        }
     }
 
     #[test]
     fn assure_new_succeed() {
         let mock = mock_downloadlink();
-        assert!(mock.version.eq(&Version::new(4,0,1)));
+        assert!(mock.version.eq(&Version::new(4, 0, 1)));
     }
 
     #[test]
     fn assure_download_path_succeed() {
         let mock = mock_downloadlink();
         let path = mock.download_path(mock.download_url.as_str());
-        assert_eq!(PathBuf::from(mock.download_url.to_string()).join(mock.file_name), path);
+        assert_eq!(
+            PathBuf::from(mock.download_url.to_string()).join(mock.file_name),
+            path
+        );
     }
+
+    // TODO: before uncommenting below - find a way to mock attohttpc for unit test purposes
+    // #[test]
+    // fn assure_download_succeed() {
+    //     let mock = mock_downloadlink();
+    //     let destination = dirs::download_dir().expect("Must have a path to download!");
+    //     let destination = destination.join("Blender/");
+    //     let result = mock.download(destination);
+    //     assert!(result.is_ok());
+    // }
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn assure_copy_dir_all_succeed() {
-
-    }
-
+    fn assure_copy_dir_all_succeed() {}
 }

@@ -33,11 +33,11 @@ impl PackageT for Bundle {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::services::packages::downloaded::tests::mock_downloaded;
 
-    fn mock_bundle() -> Bundle {
+    pub(crate) fn mock_bundle() -> Bundle {
         let download = mock_downloaded();
         let path = download.content.clone();
         Bundle::new(download, path)
@@ -48,7 +48,7 @@ mod tests {
         let download = mock_downloaded();
         let executable = PathBuf::new();
         let bundle = Bundle::new(download.clone(), executable.clone());
-        
+
         assert!(bundle.content.eq(&download));
         assert!(bundle.executable.eq(&executable));
     }

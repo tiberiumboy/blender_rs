@@ -8,7 +8,7 @@ use crate::{
     blender::BlenderError,
     models::{
         format::Format, peek_response::PeekResponse, render_setting::RenderSetting,
-        scene_info::SceneInfo, window::Window,
+        scene_info::SceneInfo, border::Border,
     },
 };
 
@@ -46,7 +46,7 @@ impl BlendFile {
         let minor = version.minor;
         // TODO: Where/how do we load format and windows from?
         let format = Format::default();
-        let window = Window::default();
+        let window = Border::default();
 
         let scene_info = SceneInfo::process(&blend)?;
         let render_setting = scene_info.clone().render_setting(format, window);

@@ -1,14 +1,14 @@
-use crate::constant::MAX_VALID_DAYS;
+// use crate::constant::MAX_VALID_DAYS;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::io::{BufReader, ErrorKind, Error, Result};
-use std::path::Path;
+use std::io::{BufReader, ErrorKind, Error, Result as IoResult};
+// use std::path::Path;
 use std::sync::LazyLock;
 use std::time::Duration;
 use std::{collections::HashMap, fs, path::PathBuf, time::SystemTime};
 use url::Url;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 enum ExpirationUnits {
     Disable,
     Day(i8),
@@ -17,8 +17,8 @@ enum ExpirationUnits {
     // Year(i8),
 }
 
+#[allow(dead_code)]
 impl ExpirationUnits {
-
     const DAYS_TO_WEEK: u64 = 7;
     const DAYS_TO_MONTH: u64 = 30;
     const DAY_INTO_HOURS: u64 = 24;
@@ -53,6 +53,7 @@ impl Default for ExpirationUnits {
         ExpirationUnits::Month(6)
     }
 }
+
 // Hide this for now,
 #[doc(hidden)]
 // rely the cache creation date on file metadata.
@@ -70,11 +71,11 @@ pub struct PageCache {
 impl PageCache {
     const CACHE_DIR: &str = "cache";
     const CONFIG_NAME: &str = "cache.json";
-    const SECONDS_TO_HOUR: u64 = 3600;
-    const HOURS_TO_DAY: u64 = 24;
+    // const SECONDS_TO_HOUR: u64 = 3600;
+    // const HOURS_TO_DAY: u64 = 24;
 
     // fetch cache directory
-    fn get_default_dir() -> Result<PathBuf> {
+    fn get_default_dir() -> IoResult<PathBuf> {
         let mut tmp = dirs::cache_dir().ok_or(Error::new(
             ErrorKind::NotFound,
             "Unable to fetch cache directory! Must have permission to create cache directory!",
@@ -87,17 +88,18 @@ impl PageCache {
 
     // fetch path to cache file
     #[inline]
-    fn get_cache_path() -> Result<PathBuf> {
+    fn get_cache_path() -> IoResult<PathBuf> {
         Ok(Self::get_default_dir()?.join(Self::CONFIG_NAME))
     }
 
     // private method, only used to save when cache has changed.
-    pub(crate) fn save(&mut self) -> Result<()> {
+    pub(crate) fn save(&mut self) -> IoResult<()> {
         let data = serde_json::to_string(&self)?;
         fs::write(&self.inner, data)
     }
 
     // TODO: See where and how we can utilize this validation process?
+    /*
     #[allow(dead_code)]
     fn validate_cache(&mut self) {
         // Here we run a check of all of the cache we have stored, and then check the last modified date. If it exceed page cache's
@@ -143,6 +145,7 @@ impl PageCache {
 
     // suppressing this for now, I'm testing the program out without having to worry about invalidating cache files for now.
     // Currently used in commented code in PageCache::load() implementation.
+     
     #[allow(dead_code)]
     fn check_expiration(cache_path: impl AsRef<Path>) -> bool {
         let current = SystemTime::now();
@@ -173,8 +176,10 @@ impl PageCache {
         false
     }
 
+    */
+
     // TODO: name is too ambiguous. What is load? What are we loading? What does it do? Does it load the program? File? Something?
-    pub fn load() -> Result<Self> {
+    pub fn load() -> IoResult<Self> {
         // use define path to cache file
         let path = Self::get_cache_path()?;
         
@@ -204,7 +209,7 @@ impl PageCache {
     /// check and see if the url matches the cache,
     /// otherwise, fetch the page from the internet, and save it to storage cache,
     /// then return the page result.
-    pub fn fetch_or_update(&mut self, url: &Url) -> Result<String> {
+    pub fn fetch_or_update(&mut self, url: &Url) -> IoResult<String> {
         
         // TODO can we avoid using to_owned()/clone()?
         let path = self.cache.entry(url.clone()).or_insert( {
@@ -212,6 +217,7 @@ impl PageCache {
                 let destination_path = self.cache_dir.join(file_name);
 
                 // Are we making the assumption that if the file is not in the entry then we can just presume it's valid?
+                // TODO: how can we run unit test on files that doesn't exist? Or do we need to write code to instantiate some file and cleanup afterward?
                 if !destination_path.exists() {
                     let response = attohttpc::get(url.as_ref()).send().map_err(Error::other)?;
                     match response.bytes() {
@@ -227,7 +233,7 @@ impl PageCache {
         fs::read_to_string(path)
     }
 
-    pub fn fetch(self, url: &Url) -> Option<String> {
+    pub fn fetch(&mut self, url: &Url) -> Option<String> {
         let path = self.cache.get(url)?;
         fs::read_to_string(path).ok()
     }
@@ -243,17 +249,124 @@ impl Drop for PageCache {
 
 #[cfg(test)]
 mod tests {
+    use crate::services::portal::tests::mock_base_url;
+
     use super::*;
 
-    // This automation test does not make a lot of sense at all. It should be per each function callings.
+    /* ExpirationUnits specific test */
     #[test]
-    fn should_pass() {
+    fn assure_cast_to_duration_succeed() {
+        let disable = ExpirationUnits::Disable;
+        let result = disable.cast_to_duration();
+        assert!(result.is_none());
+
+        let unit = 4u64;
+        let days = ExpirationUnits::Day(unit as i8);
+        let result = days.cast_to_duration();
+        assert!(result.is_some_and(|f| f.eq(&Duration::from_hours(unit * ExpirationUnits::DAY_INTO_HOURS)) ));
+    
+        let week = ExpirationUnits::Week(unit as i8);
+        let result = week.cast_to_duration();
+        assert!(result.is_some_and(|f| f.eq(&Duration::from_hours(unit * ExpirationUnits::WEEK_INTO_HOURS))));
+    
+        let month = ExpirationUnits::Month(unit as i8);
+        let result = month.cast_to_duration();
+        assert!(result.is_some_and(|f| f.eq(&Duration::from_hours(unit * ExpirationUnits::MONTH_INTO_HOURS))));
+    }
+
+    #[test]
+    fn assure_get_expiration_date_succeed() {
+        let disable = ExpirationUnits::Disable;
+        let result = disable.get_expiration_date();
+        assert!(result.is_none());
+
+        let unit = 4;
+        let days = ExpirationUnits::Day(unit);
+        let result = days.get_expiration_date();
+        assert!(result.is_some());
+
+        let weeks = ExpirationUnits::Week(unit);
+        let result = weeks.get_expiration_date();
+        assert!(result.is_some());
+
+        let months = ExpirationUnits::Month(unit);
+        let result = months.get_expiration_date();
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn assure_default_succeed() {
+        let default = ExpirationUnits::default();
+        assert!(default.eq(&ExpirationUnits::Month(6)));
+    }
+
+    /* PageCache specific test */
+
+    #[test]
+    fn assure_get_default_dir_succeed() {
+        let path = PageCache::get_default_dir();
+        assert!(path.is_ok());
+    }
+
+    #[test]
+    fn assure_get_cache_path_succeed() {
+        let path = PageCache::get_cache_path();
+        assert!(path.is_ok());
+    }
+
+    #[test]
+    fn assure_save_succeed() {
+        // assure we can load pagecache.
+        let cache = PageCache::load();
+        assert!(cache.is_ok());
+
+        let mut cache = cache.unwrap();
+        // then save the file (no changes)
+        let result = cache.save();
+        // should succeed
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn assure_page_cache_load_succeed() {
         let cache = PageCache::load();
         assert!(cache.is_ok());
         let mut cache = cache.unwrap();
+        
+
+        
         let url = Url::parse("http://www.google.com").unwrap();
         let content = cache.fetch_or_update(&url);
-        assert_eq!(content.is_ok(), true);
+
+
+        assert!(content.is_ok());
+    }
+
+    #[test]
+    fn assure_generate_file_name_succeed() {
+        let expected_file_name = "https---download-blender-org-release-Blender5-2";
+        let file_name = "Blender5.2/";
+        let url = mock_base_url().join(file_name).expect("Should join fine");
+        let result = PageCache::generate_file_name(&url);
+        assert_eq!(result, expected_file_name);
+    }
+
+    #[test]
+    fn assure_fetch_or_update_succeed() {
+        let mut cache = PageCache::load().expect("Must be able to load PageCache!");
+        let url = Url::parse("https://www.google.com").expect("Should be able to parse url!");
+        let result = cache.fetch_or_update(&url);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn assure_fetch_succeed() {
+        let mut cache = PageCache::load().expect("Must be able to load PageCache!");
+        let url = Url::parse("https://www.google.com").expect("Should be able to parse");
+        let result = cache.fetch(&url);
+
+        // If the file exist, should be Some(), otherwise None.
+        assert!(result.is_some());
     }
 
     #[test]
@@ -266,9 +379,8 @@ mod tests {
         assert!(cache.is_ok());
     }
 
-    // TODO: write unit test for get_dir()
     #[test]
-    fn get_dir_succeed() {
+    fn assure_get_dir_succeed() {
         let cache = PageCache::get_default_dir();
         assert!(cache.is_ok());
     }

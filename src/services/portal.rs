@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use url::Url;
 
-// I want this struct to remain private for now.
+// I want this struct to remain private.
 // This struct should be used as an component to fetch from reliable resources.
 // alternatively, I could swap this out and use my own custom storage solution.
 #[derive(Debug)]
@@ -37,12 +37,19 @@ impl Portal {
         format!("Blender{major}.{minor}")
     }
 
+    fn get_base_url() -> Url {
+        static PARENT: LazyLock<Url> = LazyLock::new(|| 
+            Url::parse(Portal::ROOT_URL).expect("const should parse correctly?")
+        );
+        PARENT.clone()
+    }
+
     // function generator for closures in regex patterns.
     fn generate_blender_category(
         parent: &Url,
         url: &str,
-        major: &str,
-        minor: &str,
+        major: u64,
+        minor: u64,
         download_path: &Path,
         cache: &mut PageCache,
     ) -> Option<BlenderCategory> {
@@ -51,27 +58,6 @@ impl Portal {
             Ok(path) => path,
             Err(e) => {
                 eprintln!("unable to join paths! {e:?}");
-                return None;
-            }
-        };
-
-        let major: u64 = match major.parse() {
-            Ok(val) if val >= 3 => val,
-            Ok(_) => {
-                // TODO: impl a debug switch mode to allow printing these verbose console logs.
-                // eprintln!("Omitting outdated major version.");
-                return None;
-            }
-            Err(e) => {
-                eprintln!("{e:?}");
-                return None;
-            }
-        };
-
-        let minor: u64 = match minor.parse() {
-            Ok(val) => val,
-            Err(e) => {
-                eprintln!("{e:?}");
                 return None;
             }
         };
@@ -99,8 +85,8 @@ impl Portal {
             Regex::new(r#"<a href="(?<url>.*)">Blender(?<major>[3-9]|\d{1,}).(?<minor>\d*)/</a>"#)
                 .unwrap()
         });
-        let parent = Url::parse(Self::ROOT_URL)
-            .map_err(|e| return ManagerError::UrlParseError(e.to_string()))?;
+
+        let parent = Self::get_base_url();
 
         // we fetch the content from the website above.
         let content = cache
@@ -114,6 +100,29 @@ impl Portal {
         let mut list = iter.map(|c| c.extract()).fold(
             Vec::new(),
             |mut map: Vec<BlenderCategory>, (_, [url, major, minor])| {
+
+                let major: u64 = match major.parse() {
+                    // TODO: Review this logic and see if it make sense? Are we excluding only 3?
+                    Ok(val) if val >= 3 => val,
+                    Ok(_) => {
+                        // TODO: impl a debug switch mode to allow printing these verbose console logs.
+                        // eprintln!("Omitting outdated major version {val}.");
+                        return map;
+                    }
+                    Err(e) => {
+                        eprintln!("{e:?}");
+                        return map;
+                    }
+                };
+
+                let minor: u64 = match minor.parse() {
+                    Ok(val) => val,
+                    Err(e) => {
+                        eprintln!("{e:?}");
+                        return map;
+                    }
+                };
+
                 if let Some(category) = Portal::generate_blender_category(
                     &parent,
                     url,
@@ -231,13 +240,57 @@ impl Portal {
 pub mod tests {
     use super::*;
 
-    pub fn mock_portal() -> Portal {
+    pub fn mock_portal(download_path: Option<PathBuf>) -> Portal {
         let list = Vec::new();
-        let download_path = PathBuf::new();
+        let download_path = download_path.unwrap_or_default();
 
         Portal {
             list,
             download_path,
         }
     }
+
+    pub fn mock_base_url() -> Url {
+        Portal::get_base_url()
+    }
+
+    #[test]
+    fn assure_new_succeed() {
+        let portal = mock_portal(None);
+        assert!(portal.list.is_empty());
+        assert!(portal.download_path.eq(&PathBuf::default()))
+    }
+
+    #[test]
+    fn assure_get_parent_succeed() {
+        let str = Portal::get_parent(5,2);
+        assert_eq!("Blender5.2", str);
+    }
+
+    #[test]
+    fn assure_get_base_url_succeed() {
+        let parent = Portal::get_base_url();
+        assert!(Url::parse(Portal::ROOT_URL).is_ok_and(|p| p.eq(&parent)));
+    }
+
+    #[test]
+    fn assure_generate_blender_category_succeed() {
+
+        let base = Url::parse(Portal::ROOT_URL).expect("Should parse successfully?");
+        let url = "Blender5.2/";
+        let major = 5;
+        let minor = 2;
+        // need a valid download path...
+        let download_path = PathBuf::new();
+        let mut cache = PageCache::default();
+
+        let category = Portal::generate_blender_category(&base, url, major, minor, &download_path, &mut cache );
+        assert!(category.is_some());
+    }
+
+    // #[test]
+    // fn assure_successful_blender_download() {
+    //     let download_path = PathBuf::new(); // TODO: Find a place to download and save blender.
+    //     let portal = mock_portal(Some(download_path));   
+    // }
 }

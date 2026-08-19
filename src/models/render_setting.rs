@@ -1,4 +1,4 @@
-use super::{blender_scene::Sample, format::Format, window::Window};
+use super::{blender_scene::Sample, format::Format, border::Border};
 use crate::blender::Frame;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -21,7 +21,7 @@ pub struct RenderSetting {
     /// Image format
     pub format: Format,
     /// Borders
-    pub border: Window,
+    pub border: Border,
 }
 
 impl RenderSetting {
@@ -32,7 +32,7 @@ impl RenderSetting {
         sample: Sample,
         fps: FrameRate,
         format: Format,
-        border: Window,
+        border: Border,
     ) -> Self {
         Self {
             output,
@@ -58,7 +58,7 @@ pub mod tests {
             sample: 100,
             fps: 30,
             format: Format::default(),
-            border: Window::default(),
+            border: Border::default(),
         }
     }
 }

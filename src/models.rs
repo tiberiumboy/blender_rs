@@ -10,4 +10,4 @@ pub mod mode;
 pub mod peek_response;
 pub mod render_setting;
 pub(crate) mod scene_info;
-pub mod window;
+pub mod border;

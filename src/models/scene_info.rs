@@ -11,7 +11,7 @@ use crate::{
         format::Format,
         peek_response::PeekResponse,
         render_setting::{FrameRate, RenderSetting},
-        window::Window,
+        border::Border,
     },
 };
 
@@ -106,7 +106,7 @@ impl SceneInfo {
         Ok(scene_info)
     }
 
-    pub fn render_setting(self, format: Format, window: Window) -> RenderSetting {
+    pub fn render_setting(self, format: Format, window: Border) -> RenderSetting {
         RenderSetting::new(
             self.output,
             self.render_width,
@@ -123,7 +123,7 @@ impl SceneInfo {
         let selected_camera = self.selected_camera();
         // TODO: how/where do we get the format and window from?
         let format = Format::default();
-        let window = Window::default();
+        let window = Border::default();
 
         let render_setting: RenderSetting = self.clone().render_setting(format, window);
         let current = BlenderScene::new(selected_scene, selected_camera, render_setting);

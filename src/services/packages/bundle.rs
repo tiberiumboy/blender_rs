@@ -31,3 +31,39 @@ impl PackageT for Bundle {
         &self.content.origin.version
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::packages::downloaded::tests::mock_downloaded;
+
+    fn mock_bundle() -> Bundle {
+        let download = mock_downloaded();
+        let path = download.content.clone();
+        Bundle::new(download, path)
+    }
+
+    #[test]
+    fn assure_new_succeed() {
+        let download = mock_downloaded();
+        let executable = PathBuf::new();
+        let bundle = Bundle::new(download.clone(), executable.clone());
+        
+        assert!(bundle.content.eq(&download));
+        assert!(bundle.executable.eq(&executable));
+    }
+
+    #[test]
+    fn assure_get_blender_succeed() {
+        let bundle = mock_bundle();
+        let result = bundle.get_blender();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn assure_get_version_succeed() {
+        let bundle = mock_bundle();
+        let result = bundle.get_version();
+        assert!(result.eq(bundle.get_version()));
+    }
+}

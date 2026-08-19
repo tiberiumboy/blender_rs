@@ -8,7 +8,7 @@ use std::{
 };
 
 // could I use this to describe in a TOML/YAML/JSON file?
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BlenderConfig {
     /// List of installed blenders
     blenders: HashMap<Version, Blender>,
@@ -122,7 +122,7 @@ impl Into<PathBuf> for BlenderConfig {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::blender::{self, test::mock_blender};
+    use crate::blender::test::mock_blender;
 
     use super::*;
 

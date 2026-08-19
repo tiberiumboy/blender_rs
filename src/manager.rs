@@ -187,35 +187,55 @@ impl Manager {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::models::blender_config::tests::mock_blender_config;
     use crate::services::portal::tests::mock_portal;
 
-    pub fn mock_manager() -> Manager {
-        let config = mock_blender_config(None);
-        let portal = mock_portal();
+    pub(crate) fn mock_manager(config: Option<BlenderConfig>, portal: Option<Portal>) -> Manager {
+        let config = config.unwrap_or(mock_blender_config(None));
+        let portal = portal.unwrap_or(mock_portal(None));
         Manager { config, portal }
     }
 
-    #[test]
-    fn should_pass() {
-        // let _manager = Manager::load();
+    pub fn mock_manager_default() -> Manager {
+        mock_manager(None, None)
     }
-    /*
-        fn test_download_blender_home_link() {
-            let mut manager = Manager::load();
-            let link = manager.latest_local_avail(None).or(manager
-                .download_latest_version()
-                .map_or(None, |l| Some(l.to_owned())));
-            match link {
-                Some(link) => {
-                    dbg!(link);
-                }
-                None => println!("No blender found and unable to connect to internet! Skipping!"),
-            }
-        }
-    */
 
+    #[test]
+    fn assure_cache_succeed() {
+        let cache = Manager::cache();
+        let result = cache.read();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn assure_new_succeed() {
+        let blend_config = mock_blender_config(None);
+        let portal = mock_portal(None);
+        let manager = mock_manager(Some(blend_config.clone()), Some(portal));
+        assert_eq!(manager.config, blend_config);
+    }
+
+    #[test]
+    fn assure_load_succeed() {
+        let config = mock_blender_config(None);
+        let manager = Manager::load(config);
+        assert!(manager.is_ok());
+    }
+    
+    // #[test]
+    // fn assure_get_online_version_succeed() {
+    //     let manager = mock_manager(None, None);
+    //     let list = manager.get_online_version();
+    // }
+
+    #[test]
+    fn assure_invalid_check_compressed_by_file_name_return_none() {
+        let manager = mock_manager_default();
+        let file_name = "foobar";
+        let result = manager.check_compressed_by_file_name(file_name);
+        assert!(result.is_none());
+    }
     // TODO: Write unit test for Drop if that's possible?
 }

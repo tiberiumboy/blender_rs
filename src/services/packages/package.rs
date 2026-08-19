@@ -95,3 +95,24 @@ impl BlenderPath for Package {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{fs, path::PathBuf};
+
+use crate::services::packages::download_link::tests::mock_downloadlink;
+    use super::*;
+
+    #[test]
+    fn assure_check_package_succeed() {
+        let link = mock_downloadlink();
+        let destination = fs::canonicalize(PathBuf::from("./")).unwrap();
+        let result = Package::check_package(link, destination);
+        assert!(result.is_ok());
+    }
+
+    // #[test]
+    // fn assure_get_version_succeed() {
+        
+    // }
+}

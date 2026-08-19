@@ -57,10 +57,10 @@ def set_render_settings(scn, config) -> None:
 
     # Set borders
     border = render_setting["border"]
-    scn.render.border_min_x = border["X"]
-    scn.render.border_max_x = border["X2"]
-    scn.render.border_min_y = border["Y"]
-    scn.render.border_max_y = border["Y2"]
+    scn.render.border_min_x = border["min_x"]
+    scn.render.border_max_x = border["max_x"]
+    scn.render.border_min_y = border["min_y"]
+    scn.render.border_max_y = border["max_y"]
 
     # set render format 
     file_format = config["Format"]

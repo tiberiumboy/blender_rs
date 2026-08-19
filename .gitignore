@@ -46,3 +46,4 @@ Cargo.lock
 src-tauri/gen/*
 blender_rs/examples/assets/*.png
 src-tauri/.sqlx/
+https---download-blender-org-release-Blender5-2

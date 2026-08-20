@@ -133,10 +133,6 @@ pub struct Blender {
 
 // Overload to omit path ordering. Order by Version instead.
 impl PartialOrd for Blender {
-    fn ge(&self, other: &Self) -> bool {
-        self.version.ge(&other.version)
-    }
-
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.version.partial_cmp(&other.version)
     }
@@ -347,7 +343,6 @@ impl ComputerGraphicsProgram for Blender {
     }
 }
 
-// TODO: impl unit test for blender specifically.
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
@@ -437,5 +432,73 @@ pub(crate) mod test {
     fn assure_get_script_path_succeed() {
         let path = Blender::get_script_path();
         assert!(path.is_ok_and(|path| path.exists() && path.is_file()));
+    }
+
+    #[test]
+    fn assure_order_works() {
+        let newer = Blender::new(PathBuf::new(), Version::new(4,3,4));
+        let older = Blender::new(PathBuf::new(), Version::new(4,2,4));
+        let mut list = vec![newer.clone(), older.clone()];
+        list.sort();
+        assert_eq!(list[0], older);
+        assert_eq!(list[1], newer);
+    }
+
+    #[test]
+    fn assure_handle_parse_succeed() {
+        let expect = 4;
+        let value = expect.to_string();
+        let parse = Blender::handle_parse(&value);
+        assert!(parse.is_ok_and(|f| f.eq(&expect)));
+
+        let value = "A";
+        let parse = Blender::handle_parse(value);
+        assert!(parse.is_err());
+    }
+
+    #[test]
+    fn assure_display_blender_error_succeed() {
+        
+        assert_eq!("Service offline", format!("{}", BlenderError::ServiceOffline));
+        // test invalid executable
+        assert_eq!( "Executable invalid", format!("{}", BlenderError::ExecutableInvalid));
+        let path = PathBuf::new();
+        assert_eq!(format!("Executable not found at {:?}", path), format!("{}", BlenderError::ExecutableNotFound(path)));
+
+        let file_name = "test.txt";
+        assert_eq!(format!("Invalid file: {file_name}"),format!("{}", BlenderError::InvalidFile(file_name.to_owned())));
+        
+        let parse_int_error: ParseIntError = "a".parse::<i32>().expect_err("Should fail to parse");
+        assert_eq!(parse_int_error.to_string(), format!("{}", BlenderError::ParseInt(parse_int_error)));
+        
+        let io_error = std::io::Error::new(std::io::ErrorKind::NotFound, "Not found - unit test");
+        assert_eq!( io_error.to_string(), format!("{}", BlenderError::IoError(io_error)));
+        
+        let message = "";
+        assert_eq!(format!("Render error: {message}"), format!("{}", BlenderError::RenderError(message.to_owned())));
+        assert_eq!(format!("Python error: {message}"), format!("{}", BlenderError::PythonError(message.to_owned())));
+    }
+
+    #[test]
+    fn assure_check_sum_succeed() {
+        let a = "test";
+        let b = "t3st";
+        let a_value = Blender::calculate_checksum(a.as_bytes());
+        let b_value = Blender::calculate_checksum(b.as_bytes());
+        assert_ne!(a_value, b_value);
+        
+        assert_eq!(a_value, Blender::calculate_checksum(a.as_bytes()));
+        assert_eq!(a_value,16183295663280961421);
+        
+        assert_eq!(b_value, Blender::calculate_checksum(b.as_bytes()));
+        assert_eq!(b_value,10932941976625646637);
+    }
+
+    #[test]
+    fn assure_get_relative_path_succeed() {
+        let executable = PathBuf::from("./blender4.0/blender");
+        let blender = Blender::new( executable.clone(), Version::new(4,0,0));
+        let path = blender.get_relative_path();
+        assert_eq!(path, executable.parent().expect("Should return ./blender4.0/"));
     }
 }

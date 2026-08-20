@@ -18,6 +18,12 @@ pub(crate) struct Downloaded {
 }
 
 impl Downloaded {
+    pub(crate) fn new(origin: DownloadLink, content: PathBuf ) -> Downloaded {
+        Self {
+            origin, content
+        }
+    }
+
     // return the path of execution entry point (mac specific)
     fn get_executable_path(&self) -> Result<PathBuf, BlenderCategoryError> {
         let path = self.get_content_path()?;
@@ -96,7 +102,7 @@ impl Downloaded {
         download_path: impl AsRef<Path>,
         destination: impl AsRef<Path>,
     ) -> Result<PathBuf, IoError> {
-        use crate::utils::MACOS_PATH;
+        use crate::blender::MACOS_PATH;
         use dmg::Attach;
         use std::fs;
         const APP_NAME: &str = "Blender.app";
@@ -191,26 +197,14 @@ impl PackageT for Downloaded {
 #[cfg(test)]
 pub(crate) mod tests {
     use std::{fs, str::FromStr};
-
-    use url::Url;
-
+    use crate::services::packages::download_link::tests::mock_downloadlink;
     use super::*;
 
     pub(crate) fn mock_downloaded() -> Downloaded {
         let path = PathBuf::from_str("./").expect("Should be valid for unit test purposes");
         let path = fs::canonicalize(path).expect("Should expand path fully");
-        let download_url =
-            Url::from_directory_path(path.clone()).expect("Should be valid for unit test purposes");
-
-        let download_link = DownloadLink {
-            version: Version::new(4, 0, 1),
-            file_name: "Test".to_owned(),
-            download_url,
-        };
-        Downloaded {
-            content: path.to_path_buf(),
-            origin: download_link,
-        }
+        let download_link = mock_downloadlink();
+        Downloaded::new(download_link, path.to_path_buf())
     }
 
     #[test]
@@ -237,7 +231,7 @@ pub(crate) mod tests {
     #[test]
     fn assure_get_version_succeed() {
         let downloads = mock_downloaded();
-        assert!(downloads.get_version().eq(&downloads.origin.version));
+        assert!(downloads.get_version().eq(&downloads.origin.get_version()));
     }
 
     #[test]

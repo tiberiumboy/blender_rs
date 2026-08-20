@@ -28,7 +28,7 @@ impl BlenderPath for Bundle {
 
 impl PackageT for Bundle {
     fn get_version(&self) -> &semver::Version {
-        &self.content.origin.version
+        self.content.origin.get_version()
     }
 }
 

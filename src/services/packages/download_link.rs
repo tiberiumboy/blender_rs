@@ -13,13 +13,22 @@ use url::Url;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct DownloadLink {
-    pub version: Version,
+    version: Version,
     pub file_name: String, // contains extensions!
     pub download_url: Url,
 }
 
 impl DownloadLink {
-    pub fn new(url: Url, version: Version) -> Result<DownloadLink, BlenderCategoryError> {
+
+    fn new(file_name: String, download_url: Url, version: Version) -> DownloadLink {
+        Self {
+            file_name,
+            download_url,
+            version
+        }
+    }
+
+    pub fn from(url: Url, version: Version) -> Result<DownloadLink, BlenderCategoryError> {
         let name = url
             .path_segments()
             .ok_or(BlenderCategoryError::NotFound)?
@@ -27,11 +36,7 @@ impl DownloadLink {
             .ok_or(BlenderCategoryError::NotFound)?
             .to_owned();
 
-        Ok(Self {
-            file_name: name,
-            download_url: url,
-            version,
-        })
+        Ok(Self::new(name,url,version))
     }
 
     #[inline]
@@ -43,10 +48,7 @@ impl DownloadLink {
     pub fn content_exist(self, destination: impl AsRef<Path>) -> Result<Downloaded, DownloadLink> {
         let path = self.download_path(destination);
         if path.exists() {
-            let downloaded = Downloaded {
-                origin: self,
-                content: path,
-            };
+            let downloaded = Downloaded::new(self, path);
             return Ok(downloaded);
         }
         Err(self)
@@ -99,11 +101,7 @@ pub(crate) mod tests {
         let file_name = "test_file.txt".to_owned();
         let example = fs::canonicalize(PathBuf::from("./")).unwrap();
         let download_url = Url::from_file_path(example.clone()).unwrap();
-        DownloadLink {
-            version,
-            file_name,
-            download_url,
-        }
+        DownloadLink::new(file_name, download_url, version)
     }
 
     #[test]

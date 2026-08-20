@@ -142,7 +142,7 @@ mod tests {
         let package = Package::Metadata(download_link.clone());
 
         let version = package.get_version();
-        assert_eq!(version, &download_link.version);
+        assert_eq!(version, download_link.get_version());
     }
 
     #[test]

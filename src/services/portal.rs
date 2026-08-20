@@ -292,6 +292,22 @@ pub mod tests {
         assert!(category.is_some());
     }
 
+    #[test]
+    fn assure_get_blender_state_by_version_succeed() {
+        let version = Version::new(4, 2, 0);
+        let mut mock = mock_portal(None);
+        let result = mock.get_blender_state_by_version(&version);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn assure_get_downloads_succeed() {
+        let mock = mock_portal(None);
+        let list = mock.get_downloads();
+        // should contain no download list from mock
+        assert_eq!(list.iter().count(), 0);
+    }
+
     // #[test]
     // fn assure_successful_blender_download() {
     //     let download_path = PathBuf::new(); // TODO: Find a place to download and save blender.

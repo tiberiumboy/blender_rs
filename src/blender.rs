@@ -72,6 +72,12 @@ use std::{fmt::Display, fs, io::BufReader, num::ParseIntError};
 
 pub type Frame = i32;
 
+// TODO: this is ugly, and I want to get rid of this. How can I improve this?
+// Backstory: Win and linux can be invoked via their direct app link. However, MacOS .app is just a bundle, which contains the executable inside.
+// To run process::Command, I must properly reference the executable path inside the blender.app on MacOS, using the hardcoded path below.
+#[cfg(target_os = "macos")]
+pub(crate) const MACOS_PATH: &str = "Contents/MacOS/Blender";
+
 #[derive(Debug)]
 pub enum BlenderError {
     ExecutableInvalid,
@@ -177,9 +183,6 @@ impl Blender {
     /// * InvalidData - executable path do not exist or is invalid. Please verify that the path provided exist and not compressed.
     ///  This error also serves where the executable is unable to provide the blender version.
     fn check_version(executable_path: impl AsRef<Path>) -> Result<Blender, BlenderError> {
-        #[cfg(target_os = "macos")]
-        use crate::utils::MACOS_PATH;
-
         static VERSION_REGEX: LazyLock<Regex> = LazyLock::new(|| {
             Regex::new(r"Blender (?<major>[0-9]).(?<minor>[0-9]).(?<patch>[0-9])").unwrap()
         });
@@ -345,8 +348,8 @@ impl ComputerGraphicsProgram for Blender {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use crate::{models::blender_config::tests::mock_blender_config, utils::MACOS_PATH};
-
+    #[cfg(target_os="macos")]
+    use crate::blender::MACOS_PATH;
     use super::*;
     use blend::Instance;
 
@@ -519,15 +522,24 @@ pub(crate) mod test {
         assert_eq!(b_value, 10932941976625646637);
     }
 
+    
+    #[cfg(target_os = "macos")]
+    fn generate_executable_path() -> PathBuf {
+        PathBuf::from("./blender4.0/blender").join(MACOS_PATH);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn generate_executable_path() -> PathBuf {
+        PathBuf::from("./blender4.0/blender")
+    }
+
+
     #[test]
     fn assure_get_relative_path_succeed() {
-        let executable = PathBuf::from("./blender4.0/blender");
 
-        let blender = if cfg!(target_os = "macos") {
-            Blender::new(executable.clone().join(MACOS_PATH), Version::new(4, 0, 0))
-        } else {
-            Blender::new(executable.clone(), Version::new(4, 0, 0))
-        };
+        let executable = generate_executable_path();
+        let version = Version::new(4, 0,0);
+        let blender = Blender::new(executable.clone(), version);
 
         let path = blender.get_relative_path();
         assert_eq!(

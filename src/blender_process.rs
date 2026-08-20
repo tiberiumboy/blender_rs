@@ -123,13 +123,16 @@ mod tests {
         process::{Command, Stdio},
     };
 
-    use crate::blender_process::BlenderProcess;
+    use crate::{
+        blender_process::BlenderProcess,
+        models::event::{BlenderEvent, RenderEvent},
+    };
 
-    fn mock_blender_process() -> BlenderProcess {
-        // in this case, we'd just echo some examples provided to ensure unit test works as intended.
+    fn mock_blender_process(echo: Option<String>) -> BlenderProcess {
+        let echo = echo.unwrap_or("echo Blender 5.2.0".to_owned());
         let mut cmd = Command::new("sh")
             .arg("-c")
-            .arg("echo Blender 5.2.0")
+            .arg(echo)
             .stdout(Stdio::piped())
             .spawn()
             .expect("Must be able to echo command output!");
@@ -141,10 +144,31 @@ mod tests {
 
     #[test]
     fn assure_read_succeed() {
-        let mut process = mock_blender_process();
+        let mut process = mock_blender_process(None);
         let some_data = process.read();
         assert!(some_data.is_some());
         let empty = process.read();
         assert!(empty.is_none());
+    }
+
+    #[test]
+    fn assure_child_stream_to_event_success() {
+        // ensure frame works
+        let line =
+            "Fra:1 Mem:75.82M (Peak 75.82M) | Time:00:29.81 | Rendering 1 / 64 samples".to_owned();
+        let mut mock = mock_blender_process(None);
+        let event = mock.child_stream_to_event(line);
+        assert_eq!(
+            BlenderEvent::Rendering(RenderEvent::Progress {
+                frame: 1,
+                current: 1f32,
+                total: 64f32
+            }),
+            event
+        );
+
+        let line = "Time:00:29.81".to_owned();
+        let event = mock.child_stream_to_event(line.clone());
+        assert_eq!(event, BlenderEvent::Info(line));
     }
 }

@@ -94,10 +94,6 @@ impl Manager {
     /// Load the manager data from the config file.
     pub fn load(config: BlenderConfig) -> Result<Self, ManagerError> {
         let download_path: &PathBuf = &config.clone().into();
-
-        // TODO: we'll load cache services here
-        // let cache_path = &config.cache_dir;
-        // let mut page_cache = PageCache::load().expect("Had issue loading PageCache!");
         let mut cache = Self::cache().write().unwrap();
         let portal = Portal::fetch(&download_path, &mut cache)?;
         cache.save().map_err(ManagerError::IoError)?;
@@ -189,7 +185,7 @@ impl Manager {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::models::blender_config::tests::mock_blender_config;
+    use crate::models::blender_config::tests::{get_install_path, mock_blender_config};
     use crate::services::portal::tests::mock_portal;
 
     pub(crate) fn mock_manager(config: Option<BlenderConfig>, portal: Option<Portal>) -> Manager {
@@ -223,12 +219,14 @@ pub(crate) mod tests {
         let manager = Manager::load(config);
         assert!(manager.is_ok());
     }
-    
-    // #[test]
-    // fn assure_get_online_version_succeed() {
-    //     let manager = mock_manager(None, None);
-    //     let list = manager.get_online_version();
-    // }
+
+    #[test]
+    fn assure_get_config_succeed() {
+        let config = mock_blender_config(None);
+        let mock = mock_manager(Some(config.clone()), None);
+        let result = mock.get_config();
+        assert_eq!(result, &config);
+    }
 
     #[test]
     fn assure_invalid_check_compressed_by_file_name_return_none() {
@@ -237,5 +235,42 @@ pub(crate) mod tests {
         let result = manager.check_compressed_by_file_name(file_name);
         assert!(result.is_none());
     }
+
+    #[test]
+    fn assure_get_online_version_succeed() {
+        let config = mock_blender_config(None);
+        let portal = mock_portal(None);
+        let mock = mock_manager(Some(config), Some(portal));
+
+        let list = mock.get_online_version();
+        assert_eq!(list.iter().count(), 0);
+    }
+
+    #[test]
+    fn assure_fetch_blender_succeed() {
+        let version = Version::new(4, 2, 0);
+        let config = mock_blender_config(Some(version.clone()));
+        let mut mock = mock_manager(Some(config), None);
+        let result = mock.fetch_blender(&version);
+        assert!(result.is_ok_and(|f| f.get_version().eq(&version)));
+
+        let invalid = Version::new(4, 2, 2);
+        let result = mock.fetch_blender(&invalid);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn assure_set_install_path_succeed() {
+        let config = mock_blender_config(None);
+        let mut mock = mock_manager(Some(config.clone()), None);
+        let original_path = get_install_path(&config);
+        let new_path =
+            fs::canonicalize(PathBuf::from("./")).expect("Should parse into absolute path");
+
+        mock.set_install_path(&new_path);
+        assert_ne!(original_path, &new_path);
+        assert_eq!(get_install_path(&mock.get_config()), &new_path);
+    }
+
     // TODO: Write unit test for Drop if that's possible?
 }

@@ -142,6 +142,10 @@ pub mod tests {
         }
     }
 
+    pub fn get_install_path(config: &BlenderConfig) -> &PathBuf {
+        &config.install_path
+    }
+
     #[test]
     fn assure_get_download_destination_succeed() {
         let config = mock_blender_config(None);

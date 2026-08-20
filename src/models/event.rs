@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum BlenderEvent {
     Info(String),
     Rendering(RenderEvent),
@@ -12,7 +12,7 @@ pub enum BlenderEvent {
     Unhandled(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum RenderEvent {
     Progress {
         frame: i32,

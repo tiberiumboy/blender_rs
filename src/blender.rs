@@ -172,6 +172,38 @@ impl Blender {
         value.parse().map_err(BlenderError::ParseInt)
     }
 
+    // Adding rules to provide valid version schema for Blender software and this product controls
+    pub(crate) fn parse_partial_version(major: &str, minor: &str, patch: Option<&str>) -> Option<Version> {
+        // *filter out any major version 3 or below. We will not be supporting legacy blender at the moment.
+        let major: u64 = match major.parse() {
+            Ok(v) if v >= 3 => v,
+            Ok(_) => return None,
+            Err(e) => {
+                eprintln!("{e:?}");
+                return None;
+            }
+        };
+
+        let minor: u64 = match minor.parse() {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("{e:?}");
+                return None;
+            }
+        };
+
+        let mut patch_number: u64 = 0;
+
+        if let Some(p) = patch {
+            patch_number = match p.parse() {
+                Ok(number) => number,
+                Err(_) => return None
+            }
+        }  
+
+        Some(Version::new(major, minor, patch_number))
+    }
+
     /// Obtain the version by invoking version command to blender directly.
     /// This function will invoke the -v command to retrieve blender version information.
     /// This validate two things,
@@ -546,5 +578,29 @@ pub(crate) mod test {
             path,
             executable.parent().expect("Should return ./blender4.0/")
         );
+    }
+
+    #[test]
+    fn assure_valid_version_response() {
+        // assure successful result
+        let version = Blender::parse_partial_version("4", "3", None);
+        assert!(version.is_some());
+        let version = Blender::parse_partial_version("3", "0", Some("0"));
+        assert!(version.is_some());
+        // God forbid I live this long to see this version sematics.
+        let version = Blender::parse_partial_version("999", "999", Some("999"));
+        assert!(version.is_some());
+
+        // if the value is below than 3 - return none, as we do not support blender 3.0 versions and below
+        let version = Blender::parse_partial_version("2", "0", None);
+        assert!(version.is_none());
+        let version = Blender::parse_partial_version("1", "0", None);
+        assert!(version.is_none());
+
+        let version = Blender::parse_partial_version("4", "A", None);
+        assert!(version.is_none());
+
+        let version = Blender::parse_partial_version("4", "0", Some("B"));
+        assert!(version.is_none());
     }
 }

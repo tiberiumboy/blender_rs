@@ -101,33 +101,16 @@ impl Portal {
         let mut list = iter.map(|c| c.extract()).fold(
             Vec::new(),
             |mut map: Vec<BlenderCategory>, (_, [url, major, minor])| {
-                let major: u64 = match major.parse() {
-                    // TODO: Review this logic and see if it make sense? Are we excluding only 3?
-                    Ok(val) if val >= 3 => val,
-                    Ok(_) => {
-                        // TODO: impl a debug switch mode to allow printing these verbose console logs.
-                        // eprintln!("Omitting outdated major version {val}.");
-                        return map;
-                    }
-                    Err(e) => {
-                        eprintln!("{e:?}");
-                        return map;
-                    }
-                };
-
-                let minor: u64 = match minor.parse() {
-                    Ok(val) => val,
-                    Err(e) => {
-                        eprintln!("{e:?}");
-                        return map;
-                    }
+                let version = match Blender::parse_partial_version(major, minor, None) {
+                    Some(v) => v,
+                    None => return map
                 };
 
                 if let Some(category) = Portal::generate_blender_category(
                     &parent,
                     url,
-                    major,
-                    minor,
+                    version.major,
+                    version.minor,
                     download_path.as_ref(),
                     cache,
                 ) {

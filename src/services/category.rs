@@ -68,6 +68,23 @@ static CONTENT_REGEX_EXTRACT: OnceLock<Regex> = OnceLock::new();
 
 // content of https://download.blender.org/release/Blender{major}.{minor}/
 impl BlenderCategory {
+
+    fn validate_compatibility(extension: &str, operating_system: &str, architecture: &str) -> bool {
+        let current_arch =
+            match get_valid_arch() {
+                Ok(arch) => arch,
+                _ => return false
+            };
+
+        let valid_ext =
+            match get_extension() {
+                Ok(ext) => ext,
+                _ => return false
+            };
+        
+        extension.eq(valid_ext) && operating_system.eq(consts::OS) && architecture.eq(current_arch)
+    }
+
     // TODO: [BUG] for some reason I was fetching this multiple of times already. Expensive to call. Profile test?
     // should only be called once when this class is created.
     // TODO: Try to make this private as much as possible! this parse content is a hack to help reduce function complexity.
@@ -77,12 +94,7 @@ impl BlenderCategory {
         base_url: &Url,
         download_path: impl AsRef<Path>,
     ) -> Result<HashMap<Version, Package>, BlenderCategoryError> {
-        let current_arch =
-            get_valid_arch().map_err(|e| BlenderCategoryError::InvalidArch(e.into()))?;
-
-        let valid_ext =
-            get_extension().map_err(|e| BlenderCategoryError::UnsupportedOS(e.into()))?;
-
+        
         // The rule has changed. The extension will not include a period symbol. Additional period will be treated as extension of extension, e.g. tar.xz
         let iter = CONTENT_REGEX_EXTRACT.get_or_init(||Regex::new(
                 r#"<a href="(?<url>\w*-(?<major>\d*).(?<minor>\d*).(?<patch>\d*.)-(?<os>\w.*)-(?<arch>\w*)\.(?<ext>.*))">"#,
@@ -92,47 +104,16 @@ impl BlenderCategory {
             HashMap::new(),
             |mut map, (_, [url, major, minor, patch, os, arch, ext])| {
                 // Check and see if the extension is valid
-                if ext.ne(valid_ext) {
+                if Self::validate_compatibility(ext, os, arch) {
                     return map;
                 }
 
-                // Must match running operating system.
-                if os.ne(consts::OS) {
-                    return map;
-                }
-
-                // Compatible with existing archtecture
-                if arch.ne(current_arch) {
-                    return map;
-                }
-
-                // *filter out any major version 3 or below. We will not be supporting legacy blender at the moment.
-                let major: u64 = match major.parse() {
-                    Ok(v) if v >= 3 => v,
-                    Ok(_) => return map,
-                    Err(e) => {
-                        eprintln!("{e:?}");
-                        return map;
-                    }
+                let version = match Blender::parse_partial_version(major, minor, Some(patch)) {
+                    Some(version) => version,
+                    None => return map
                 };
 
-                let minor: u64 = match minor.parse() {
-                    Ok(v) => v,
-                    Err(e) => {
-                        eprintln!("{e:?}");
-                        return map;
-                    }
-                };
-
-                let patch: u64 = match patch.parse() {
-                    Ok(v) => v,
-                    Err(e) => {
-                        eprintln!("{e:?}");
-                        return map;
-                    }
-                };
-
-                let version = Version::new(major, minor, patch);
+                // this should succeed no matter what...
                 let url = match base_url.join(&url) {
                     Ok(url) => url,
                     Err(e) => {
@@ -141,7 +122,7 @@ impl BlenderCategory {
                     }
                 };
 
-                let link = match DownloadLink::new(url, version.clone()) {
+                let link = match DownloadLink::from(url, version.clone()) {
                     Ok(link) => link,
                     Err(e) => {
                         eprintln!("{e:?}");
@@ -278,5 +259,14 @@ mod tests {
         let category = mock_blender_category();
         let result = category.get_packages();
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn assure_category_partial_eq_succeed() {
+        let mut lhs = mock_blender_category();
+        let rhs = mock_blender_category();
+        assert!(lhs.eq(&rhs));
+        lhs.base_url = lhs.base_url.join("/dev/null").expect("Should be valid");
+        assert_ne!(lhs, rhs);
     }
 }

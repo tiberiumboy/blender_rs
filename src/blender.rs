@@ -173,7 +173,11 @@ impl Blender {
     }
 
     // Adding rules to provide valid version schema for Blender software and this product controls
-    pub(crate) fn parse_partial_version(major: &str, minor: &str, patch: Option<&str>) -> Option<Version> {
+    pub(crate) fn parse_partial_version(
+        major: &str,
+        minor: &str,
+        patch: Option<&str>,
+    ) -> Option<Version> {
         // *filter out any major version 3 or below. We will not be supporting legacy blender at the moment.
         let major: u64 = match major.parse() {
             Ok(v) if v >= 3 => v,
@@ -197,9 +201,9 @@ impl Blender {
         if let Some(p) = patch {
             patch_number = match p.parse() {
                 Ok(number) => number,
-                Err(_) => return None
+                Err(_) => return None,
             }
-        }  
+        }
 
         Some(Version::new(major, minor, patch_number))
     }
@@ -380,9 +384,9 @@ impl ComputerGraphicsProgram for Blender {
 
 #[cfg(test)]
 pub(crate) mod test {
-    #[cfg(target_os="macos")]
-    use crate::blender::MACOS_PATH;
     use super::*;
+    #[cfg(target_os = "macos")]
+    use crate::blender::MACOS_PATH;
     use blend::Instance;
 
     // must be accessible within crate for unit test purposes.
@@ -554,10 +558,9 @@ pub(crate) mod test {
         assert_eq!(b_value, 10932941976625646637);
     }
 
-    
     #[cfg(target_os = "macos")]
     fn generate_executable_path() -> PathBuf {
-        PathBuf::from("./blender4.0/blender").join(MACOS_PATH);
+        PathBuf::from("./blender4.0/blender").join(MACOS_PATH)
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -565,19 +568,24 @@ pub(crate) mod test {
         PathBuf::from("./blender4.0/blender")
     }
 
-
     #[test]
     fn assure_get_relative_path_succeed() {
-
         let executable = generate_executable_path();
-        let version = Version::new(4, 0,0);
+        let version = Version::new(4, 0, 0);
         let blender = Blender::new(executable.clone(), version);
 
         let path = blender.get_relative_path();
-        assert_eq!(
-            path,
-            executable.parent().expect("Should return ./blender4.0/")
-        );
+        let mut expected = executable.parent().expect("Should return ./blender4.0/");
+        if cfg!(target_os = "macos") {
+            expected = expected
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap();
+        }
+        assert_eq!(path, expected);
     }
 
     #[test]

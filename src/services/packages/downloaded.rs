@@ -1,8 +1,8 @@
+#[cfg(target_os = "macos")]
+use crate::blender::MACOS_PATH;
 use crate::services::category::BlenderCategoryError;
 use crate::services::packages::bundle::Bundle;
 use crate::services::packages::package::{Package, PackageT};
-#[cfg(target_os = "macos")]
-use crate::utils::MACOS_PATH;
 use crate::{services::packages::download_link::DownloadLink, utils::get_extension};
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -18,10 +18,8 @@ pub(crate) struct Downloaded {
 }
 
 impl Downloaded {
-    pub(crate) fn new(origin: DownloadLink, content: PathBuf ) -> Downloaded {
-        Self {
-            origin, content
-        }
+    pub(crate) fn new(origin: DownloadLink, content: PathBuf) -> Downloaded {
+        Self { origin, content }
     }
 
     // return the path of execution entry point (mac specific)
@@ -196,9 +194,9 @@ impl PackageT for Downloaded {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{fs, str::FromStr};
-    use crate::services::packages::download_link::tests::mock_downloadlink;
     use super::*;
+    use crate::services::packages::download_link::tests::mock_downloadlink;
+    use std::{fs, str::FromStr};
 
     pub(crate) fn mock_downloaded() -> Downloaded {
         let path = PathBuf::from_str("./").expect("Should be valid for unit test purposes");

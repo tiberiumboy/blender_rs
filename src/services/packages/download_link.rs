@@ -120,6 +120,14 @@ pub(crate) mod tests {
         );
     }
 
+    #[test]
+    fn assure_mock_download_errors() {
+        let mock = mock_downloadlink();
+        let destination = fs::canonicalize(PathBuf::from("./")).expect("Should expand to absolute path!");
+        let result = mock.download(destination);
+        assert!(result.is_err());
+    }
+
     // TODO: before uncommenting below - find a way to mock attohttpc for unit test purposes
     // #[test]
     // fn assure_download_succeed() {

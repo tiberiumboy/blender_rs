@@ -195,7 +195,7 @@ impl PackageT for Downloaded {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::services::packages::download_link::tests::mock_downloadlink;
+    use crate::services::packages::{bundle::tests::mock_bundle, download_link::tests::mock_downloadlink};
     use std::{fs, str::FromStr};
 
     pub(crate) fn mock_downloaded() -> Downloaded {
@@ -220,11 +220,30 @@ pub(crate) mod tests {
         assert!(result.is_ok());
     }
 
-    // TODO: impl a temp compress file
     // #[test]
     // fn assure_extract_content_succeed() {
-
+    //     // TODO: impl a temp compress file
+    //     let test_file: PathBuf = fs::canonicalize(PathBuf::from("./")).expect("Should have a valid location!");
+    //     panic!("Impl a temp compress file to test this unit test");
     // }
+
+    #[test]
+    fn assure_extract_content_error_on_invalid_path() {
+        // Assure that empty file path should return error
+        let path = PathBuf::new();
+        let destination = fs::canonicalize(PathBuf::from("./")).expect("Should resolve to absolute path!");
+        let result = Downloaded::extract_content(path, destination);
+        assert!(result.is_err());
+
+        // assure that invalid compressed file should return error
+        // let file = 
+    }
+
+    #[test]
+    fn assure_get_extension_succeed() {
+        let extension = get_extension();
+        assert!(extension.is_ok());
+    }
 
     #[test]
     fn assure_get_version_succeed() {
@@ -233,14 +252,17 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn assure_check_unpacked_succeed() {}
+    fn assure_check_unpacked_mock_should_error() {
+        let mock = mock_downloaded();
+        let result = mock.check_unpacked();
+        assert!(result.is_err());
+    }
 
     #[test]
-    fn assure_extract_succeed() {}
-
-    #[test]
-    fn assure_get_extension_succeed() {
-        let extension = get_extension();
-        assert!(extension.is_ok());
+    fn assure_mock_extract_returns_package_download() {
+        // mock download does not have valid paths, so it should be expected to return Package::Downloaded(), the same as mock_type
+        let bundle = mock_downloaded();
+        let package = bundle.clone().extract();
+        assert_eq!(package, Package::Downloaded(bundle));
     }
 }

@@ -198,6 +198,7 @@ pub(crate) mod tests {
         mock_manager(None, None)
     }
 
+    // TODO: Flaky unit test! Would fail occassionally?
     #[test]
     fn assure_cache_succeed() {
         let cache = Manager::cache();
@@ -213,6 +214,7 @@ pub(crate) mod tests {
         assert_eq!(manager.config, blend_config);
     }
 
+    // TODO: Flaky unit test! Would fail occassionally?
     #[test]
     fn assure_load_succeed() {
         let config = mock_blender_config(None);

@@ -103,6 +103,7 @@ impl Default for BlenderConfig {
 
         // ensure path location must exist to save and store to
         // - we've been given a place with permission access.
+        // TODO: impossible to cover this code unless we make this default return Result<T, IoError>
         if let Err(e) = fs::create_dir_all(&install_path) {
             eprintln!("Unable to create {e:?}");
         }
@@ -122,9 +123,8 @@ impl Into<PathBuf> for BlenderConfig {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::blender::test::mock_blender;
-
     use super::*;
+    use crate::blender::test::mock_blender;
 
     pub fn mock_blender_config(blender: Option<Version>) -> BlenderConfig {
         let mut blenders = HashMap::new();
@@ -219,8 +219,14 @@ pub mod tests {
         let major = 4;
         let minor = 1;
         let version = Version::new(major, minor, 1);
-        // TODO: Add more blender version and run unit test for version greater than comparison in major and minor
-        let config = mock_blender_config(Some(version.clone()));
+        let recent = Version::new(major, minor, 2);
+        let old_version = Version::new(3, 4, 0);
+
+        let mut config = mock_blender_config(Some(version.clone()));
+        let fake_blender = mock_blender(None, old_version.clone());
+        let recent_blender = mock_blender(None, recent.clone());
+        config.blenders.insert(old_version.clone(), fake_blender);
+        config.blenders.insert(recent.clone(), recent_blender);
 
         let result = config.get_blender_partial(major, minor);
         assert!(result.is_some());

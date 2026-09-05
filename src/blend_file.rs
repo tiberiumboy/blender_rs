@@ -1,16 +1,14 @@
-use std::path::{Path, PathBuf};
-
-use blend::Blend;
-use semver::Version;
-use serde::{Deserialize, Serialize};
-
 use crate::{
     blender::BlenderError,
     models::{
-        format::Format, peek_response::PeekResponse, render_setting::RenderSetting,
-        scene_info::SceneInfo, border::Border,
+        border::Border, format::Format, peek_response::PeekResponse, render_setting::RenderSetting,
+        scene_info::SceneInfo,
     },
 };
+use blend::Blend;
+use semver::Version;
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 
 // A struct to hold valid blend file with compatible partial version.
 // we can extract additional data if we need to?
@@ -111,12 +109,12 @@ impl Into<SceneInfo> for BlendFile {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::env;
-    use std::str::FromStr;
-
     use super::*;
     use crate::models::render_setting::tests::mock_rendering_setting;
     use crate::models::scene_info::tests::mock_scene_info;
+    use std::fs::File;
+    use std::str::FromStr;
+    use std::{env, fs};
 
     pub(crate) fn mock_blend_file() -> BlendFile {
         let mut dir = env::current_exe().expect("Must have valid current executable!");
@@ -156,6 +154,27 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn assure_empty_blend_file_returns_invalid_file() {
+        let path = fs::canonicalize(PathBuf::from("./"))
+            .expect("Must be able to resolve absolute file path!")
+            .join("test.blend");
+        File::create(path.clone()).expect("Must be able to create fake file for this test");
+
+        let bad_file = BlendFile::try_from(path.clone());
+        assert!(bad_file.is_err());
+
+        fs::remove_file(path).expect("Should be able to clean up test files");
+    }
+
+    #[test]
+    fn assure_get_partial_version_succeed() {
+        let mock = mock_blend_file();
+        let (major, minor) = mock.get_partial_version();
+        assert_eq!(major, mock.major);
+        assert_eq!(minor, mock.minor);
+    }
+
+    #[test]
     fn assure_blend_file_existance_fails() {
         let bad_file = BlendFile::try_from(PathBuf::new()); // should fail.
         assert!(bad_file.is_err());
@@ -170,5 +189,26 @@ pub(crate) mod tests {
 
         let blend_file = BlendFile::try_from(example_path);
         assert!(blend_file.is_err());
+    }
+
+    #[test]
+    fn assure_into_pathbuf_succeed() {
+        let mock = mock_blend_file();
+        let path_buf: PathBuf = mock.clone().into();
+        assert_eq!(path_buf, mock.inner);
+    }
+
+    #[test]
+    fn assure_into_render_settings_succeed() {
+        let mock = mock_blend_file();
+        let render_setting: RenderSetting = mock.into();
+        assert_eq!(mock_rendering_setting(), render_setting);
+    }
+
+    #[test]
+    fn assure_into_scene_info_succeed() {
+        let mock = mock_blend_file();
+        let scene_info: SceneInfo = mock.into();
+        assert_eq!(mock_scene_info(), scene_info);
     }
 }

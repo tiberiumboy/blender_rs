@@ -384,6 +384,8 @@ impl ComputerGraphicsProgram for Blender {
 
 #[cfg(test)]
 pub(crate) mod test {
+    use std::fs::File;
+
     use super::*;
     #[cfg(target_os = "macos")]
     use crate::blender::MACOS_PATH;
@@ -391,15 +393,10 @@ pub(crate) mod test {
 
     // must be accessible within crate for unit test purposes.
     pub(crate) fn mock_blender(path: Option<PathBuf>, version: Version) -> Blender {
-        match path {
-            Some(executable) => Blender {
-                executable,
-                version,
-            },
-            None => Blender {
-                executable: PathBuf::new(),
-                version,
-            },
+        let executable = path.unwrap_or(PathBuf::new());
+        Blender {
+            executable,
+            version,
         }
     }
 
@@ -451,6 +448,31 @@ pub(crate) mod test {
                 }
             }
         }
+    }
+
+    #[test]
+    fn assure_invalid_executable_path_returns_executable_not_found() {
+        let result = Blender::check_version(PathBuf::new());
+        assert!(result.is_err()); // Should be BlenderError::ExecutableNotFound
+    }
+
+    #[test]
+    fn assure_fake_executable_path_returns_io_error() {
+        let fake_blender_file =
+            fs::canonicalize("./").expect("Must be able to resolve absolute path");
+
+        let fake_blender_file = fake_blender_file.join("blender");
+
+        // creates a fake blender executable (Will throw an error; unable to execute command)
+        File::create(fake_blender_file.clone())
+            .expect("Must be able to create temp blender executable for unit test purpose");
+
+        let result = Blender::check_version(fake_blender_file.clone());
+        assert!(result.is_err()); // Should be BlenderError::IoError
+
+        // cleanup
+        fs::remove_file(fake_blender_file)
+            .expect("Unable to cleanup temp blender executable from unit test!");
     }
 
     #[test]
@@ -563,9 +585,14 @@ pub(crate) mod test {
         PathBuf::from("./blender4.0/blender").join(MACOS_PATH)
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
     fn generate_executable_path() -> PathBuf {
         PathBuf::from("./blender4.0/blender")
+    }
+
+    #[cfg(target_os = "windows")]
+    fn generate_executable_path() -> PathBuf {
+        PathBuf::from("./blender4.0/blender.exe")
     }
 
     #[test]

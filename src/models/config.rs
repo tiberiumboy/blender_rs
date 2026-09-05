@@ -1,11 +1,10 @@
-use crate::blender::Frame;
-
 use super::{
     args::HardwareMode,
     blender_scene::{BlenderScene, Sample},
     device::Processor,
     format::Format,
 };
+use crate::blender::Frame;
 use serde::{Deserialize, Serialize};
 use std::io::Result as IoResult;
 use std::path::PathBuf;
@@ -13,17 +12,27 @@ use std::thread::available_parallelism;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-// TODO: could rename this to something else? This is a struct to serialize into JSON for python configuration
+// This is a struct for python configuration when launch Blender
+// We serialize this into JSON and pass it into command arguments
+// On python side; The JSON gets decode and use the information stored
+//      to apply settings directly to Blender before rendering.
 pub struct BlenderConfiguration {
-    // output various
+    /// Exact output path
     output: PathBuf,
     scene_info: BlenderScene,
+    /// The number of cores to utilize for this rendering job.
     cores: usize,
+    /// Which rendering architecture to use
     processor: Processor,
+    /// Which hardware to utilize
     hardware_mode: HardwareMode,
+    /// The sample count (Overrides the default blend file settings)
     sample: Sample,
+    /// Rendered image format
     format: Format,
+    /// Render starts from this frame (Inclusive)
     start: Frame,
+    /// Render completes after this frame (Inclusive)
     end: Frame,
     // Py:- Value assign to use_crop_to_border, additionally, false set film_transparent true
     crop: bool,

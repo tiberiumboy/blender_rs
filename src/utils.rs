@@ -3,13 +3,17 @@ use crate::blender::BlenderConfig;
 use std::env::consts::ARCH;
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 use std::env::consts::OS;
+use std::path::PathBuf;
+#[cfg(feature = "manager")]
+use std::sync::OnceLock;
 use std::{
     fs,
     io::{Error as IoError, ErrorKind, Result as IoResult},
 };
-use std::{path::PathBuf, sync::OnceLock};
 
+#[cfg(feature = "manager")]
 static EXT: OnceLock<String> = OnceLock::new();
+#[cfg(feature = "manager")]
 static ARCH: OnceLock<String> = OnceLock::new();
 
 /// Fetch the configuration path for blender.
@@ -39,6 +43,7 @@ pub fn get_blend_config_from_local() -> IoResult<BlenderConfig> {
 /// Return extension matching to the current operating system. Windows(zip), Linux(tar.xz), or MacOS(dmg)
 /// This will return extension name without the initial period. Any period is treated as extension of extension (e.g. tar.xz)
 #[inline]
+#[cfg(feature = "manager")]
 pub(crate) fn get_extension() -> Result<&'static str, &'static str> {
     #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     return Err(OS);
@@ -54,6 +59,7 @@ pub(crate) fn get_extension() -> Result<&'static str, &'static str> {
 
 /// Fetch Valid architecture. "x64" or "arm64"(apple silicon)
 #[inline]
+#[cfg(feature = "manager")]
 pub(crate) fn get_valid_arch() -> Result<&'static str, &'static str> {
     #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
     return Err(ARCH);

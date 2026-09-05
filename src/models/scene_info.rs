@@ -8,10 +8,10 @@ use crate::{
     blender::{BlenderError, Frame},
     models::{
         blender_scene::{BlenderScene, Camera, Sample, SceneName},
+        border::Border,
         format::Format,
         peek_response::PeekResponse,
         render_setting::{FrameRate, RenderSetting},
-        border::Border,
     },
 };
 
@@ -79,11 +79,6 @@ impl SceneInfo {
             // };
 
             scene_info.sample = obj.get("eevee").get_i32("taa_render_samples");
-
-            // Issue, Cannot find cycles info! Blender show that it should be here under SCscene, just like eevee, but I'm looking it over and over and it's not there? Where is cycle?
-            // Use this for development only!
-            // Self::explore_value(&obj.get("eevee"));
-
             scene_info.render_width = render.get_i32("xsch");
             scene_info.render_height = render.get_i32("ysch");
             scene_info.frame_start = render.get_i32("sfra");
@@ -97,7 +92,6 @@ impl SceneInfo {
             scene_info.scenes.push(scene);
         }
 
-        // interesting - I'm picking up the wrong camera here?
         for obj in blend.instances_with_code(*b"CA") {
             let camera = obj.get("id").get_string("name").replace("CA", "");
             scene_info.cameras.push(camera);

@@ -1,12 +1,14 @@
 # NOTE: Sybren mention that Cycle will perform better if the render was sent out as
 # a batch instead of individual renders. Consider using Range()
-# TODO: What's the earliest python version blender supports? 
+# TODO: What's the earliest python version blender supports?
 # Wanted to make sure we are compilance with older version to use supported built-in library stacks.
 
-import bpy # type: ignore
 import json
-import sys # used for argparse - does not work well with blender!
+import sys  # used for argparse - does not work well with blender!
 from multiprocessing import cpu_count
+
+import bpy  # type: ignore
+
 
 def eprint(msg):
     """Print exception tag message to console for program to intercept"""
@@ -62,7 +64,7 @@ def set_render_settings(scn, config) -> None:
     scn.render.border_min_y = border["min_y"]
     scn.render.border_max_y = border["max_y"]
 
-    # set render format 
+    # set render format
     file_format = config["Format"]
     if file_format is not None:
         scn.render.image_settings.file_format = file_format
@@ -85,7 +87,7 @@ def render_batch(scn, config):
     scn.render.filepath = config["Output"] + '''/#####'''
     scn.frame_start = int(config["Start"])
     scn.frame_end = int(config["End"])
-    
+
     # Render
     bpy.ops.render.render(animation=True, write_still=True)
 

@@ -1,6 +1,6 @@
 // here we'll provide basic cli interface controls to list, edit, add, or remove blender installations history.
 // Below the surface should follow simple implementations similar to REST api.
-
+// Requires feature flag "manager"
 use blender_rs::{
     blender::{get_blend_config_from_local, Blender, ComputerGraphicsProgram},
     manager::Manager,

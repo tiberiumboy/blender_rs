@@ -68,20 +68,17 @@ static CONTENT_REGEX_EXTRACT: OnceLock<Regex> = OnceLock::new();
 
 // content of https://download.blender.org/release/Blender{major}.{minor}/
 impl BlenderCategory {
-
     fn validate_compatibility(extension: &str, operating_system: &str, architecture: &str) -> bool {
-        let current_arch =
-            match get_valid_arch() {
-                Ok(arch) => arch,
-                _ => return false
-            };
+        let current_arch = match get_valid_arch() {
+            Ok(arch) => arch,
+            _ => return false,
+        };
 
-        let valid_ext =
-            match get_extension() {
-                Ok(ext) => ext,
-                _ => return false
-            };
-        
+        let valid_ext = match get_extension() {
+            Ok(ext) => ext,
+            _ => return false,
+        };
+
         extension.eq(valid_ext) && operating_system.eq(consts::OS) && architecture.eq(current_arch)
     }
 
@@ -94,7 +91,6 @@ impl BlenderCategory {
         base_url: &Url,
         download_path: impl AsRef<Path>,
     ) -> Result<HashMap<Version, Package>, BlenderCategoryError> {
-        
         // The rule has changed. The extension will not include a period symbol. Additional period will be treated as extension of extension, e.g. tar.xz
         let iter = CONTENT_REGEX_EXTRACT.get_or_init(||Regex::new(
                 r#"<a href="(?<url>\w*-(?<major>\d*).(?<minor>\d*).(?<patch>\d*.)-(?<os>\w.*)-(?<arch>\w*)\.(?<ext>.*))">"#,
@@ -110,7 +106,7 @@ impl BlenderCategory {
 
                 let version = match Blender::parse_partial_version(major, minor, Some(patch)) {
                     Some(version) => version,
-                    None => return map
+                    None => return map,
                 };
 
                 // this should succeed no matter what...
@@ -243,6 +239,21 @@ mod tests {
             .join(&mock_get_parent(major, minor))
             .expect("Should join successfully");
         BlenderCategory::new(base_url, major, minor, Default::default())
+    }
+
+    #[test]
+    fn ensure_partial_order_implementation_succeed() {
+        let category = mock_blender_category();
+        let mut identical = mock_blender_category();
+        let mut newer = mock_blender_category();
+        // this will have a different url path than the category we're testing against. However, partial order ignores urls.
+        identical.base_url = mock_base_url();
+        newer.minor = 3;
+        let mut recent = mock_blender_category();
+        recent.major = 3;
+        assert!(category.partial_cmp(&newer).is_some_and(|f| f.is_le()));
+        assert!(category.partial_cmp(&identical).is_some_and(|f| f.is_eq()));
+        assert!(category.partial_cmp(&recent).is_some_and(|f| f.is_ge()));
     }
 
     #[test]

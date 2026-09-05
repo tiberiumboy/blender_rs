@@ -1,7 +1,7 @@
 // use crate::constant::MAX_VALID_DAYS;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::io::{BufReader, ErrorKind, Error, Result as IoResult};
+use std::io::{BufReader, Error, ErrorKind, Result as IoResult};
 // use std::path::Path;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -29,16 +29,16 @@ impl ExpirationUnits {
         match self {
             ExpirationUnits::Day(d) => {
                 Some(Duration::from_hours((*d as u64) * Self::DAY_INTO_HOURS))
-            },
+            }
             ExpirationUnits::Week(w) => {
                 Some(Duration::from_hours((*w as u64) * Self::WEEK_INTO_HOURS))
             }
             ExpirationUnits::Month(m) => {
                 Some(Duration::from_hours((*m as u64) * Self::MONTH_INTO_HOURS))
-            },
-            ExpirationUnits::Disable => None
+            }
+            ExpirationUnits::Disable => None,
         }
-    } 
+    }
 
     // None is return when ExpirationUnits is disabled
     pub fn get_expiration_date(&self) -> Option<SystemTime> {
@@ -103,15 +103,15 @@ impl PageCache {
     #[allow(dead_code)]
     fn validate_cache(&mut self) {
         // Here we run a check of all of the cache we have stored, and then check the last modified date. If it exceed page cache's
-        // TODO: Present a "Delete cache after X Y" Where X is a number and Y is enum such as Day, Weeks, or Month 
-        // - We should be realistic, protective, and caution about security and delete cache older than 6 months as default value, 
-        //      unless someone objects this idea and creates a PR request removing this comment and prove me wrong why we should store cache older than a year? 
+        // TODO: Present a "Delete cache after X Y" Where X is a number and Y is enum such as Day, Weeks, or Month
+        // - We should be realistic, protective, and caution about security and delete cache older than 6 months as default value,
+        //      unless someone objects this idea and creates a PR request removing this comment and prove me wrong why we should store cache older than a year?
         //      At this point, you might as well just turn off this feature?
-        
+
         // gather a list of files currently in the cache directory (excluding cache.json)
         // this will help us clean the cache folder of files ready to be deleted from the system.
         // let files_found = fs::read_dir(&self.cache_dir).map_or(Vec::new(), f);
-        
+
         self.cache.retain(|_, v| {
             if !&v.exists() {
                 return false;
@@ -128,7 +128,7 @@ impl PageCache {
                                 return false;
                             }
                         }
-                    }, 
+                    },
                     Err(e) => {
                         eprintln!("[PageCache] Unable to read metadata!{e:?}");
                         return false;
@@ -145,7 +145,7 @@ impl PageCache {
 
     // suppressing this for now, I'm testing the program out without having to worry about invalidating cache files for now.
     // Currently used in commented code in PageCache::load() implementation.
-     
+
     #[allow(dead_code)]
     fn check_expiration(cache_path: impl AsRef<Path>) -> bool {
         let current = SystemTime::now();
@@ -164,11 +164,11 @@ impl PageCache {
         // if file exist and provides duration date.
         if let Ok(duration) = current.duration_since(created_date) {
             // must be within valid window timeframe.
-            if duration.as_secs() < MAX_VALID_DAYS * Self::SECONDS_TO_HOUR * Self::HOURS_TO_DAY { 
-                // TODO: Enable via verbosity option     
+            if duration.as_secs() < MAX_VALID_DAYS * Self::SECONDS_TO_HOUR * Self::HOURS_TO_DAY {
+                // TODO: Enable via verbosity option
                 println!(
                     "Time still valid: Remaining {}hrs",
-                    duration.as_secs() / Self::SECONDS_TO_HOUR - (MAX_VALID_DAYS * Self::HOURS_TO_DAY)   
+                    duration.as_secs() / Self::SECONDS_TO_HOUR - (MAX_VALID_DAYS * Self::HOURS_TO_DAY)
                 );
                 return true;
             }
@@ -182,7 +182,7 @@ impl PageCache {
     pub fn load() -> IoResult<Self> {
         // use define path to cache file
         let path = Self::get_cache_path()?;
-        
+
         // TODO: For now I'm trying to test this out without having to redownload everything again from the internet source.
         // use define path to cache file
         // if Self::check_expiration(&path) == false {
@@ -196,7 +196,8 @@ impl PageCache {
     }
 
     fn generate_file_name(url: &Url) -> String {
-        static REPLACE_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"[/\\?%*:|."<>]"#).unwrap());
+        static REPLACE_REGEX: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r#"[/\\?%*:|."<>]"#).unwrap());
 
         let mut file_name = url.to_string();
         // Rule: find any invalid file name characters
@@ -210,26 +211,24 @@ impl PageCache {
     /// otherwise, fetch the page from the internet, and save it to storage cache,
     /// then return the page result.
     pub fn fetch_or_update(&mut self, url: &Url) -> IoResult<String> {
-        
         // TODO can we avoid using to_owned()/clone()?
-        let path = self.cache.entry(url.clone()).or_insert( {
-                let file_name = Self::generate_file_name( url );
-                let destination_path = self.cache_dir.join(file_name);
+        let path = self.cache.entry(url.clone()).or_insert({
+            let file_name = Self::generate_file_name(url);
+            let destination_path = self.cache_dir.join(file_name);
 
-                // Are we making the assumption that if the file is not in the entry then we can just presume it's valid?
-                // TODO: how can we run unit test on files that doesn't exist? Or do we need to write code to instantiate some file and cleanup afterward?
-                if !destination_path.exists() {
-                    let response = attohttpc::get(url.as_ref()).send().map_err(Error::other)?;
-                    match response.bytes() {
-                        Ok(body) => fs::write(&destination_path, body)?,
-                        Err(e) => eprintln!("Fail to get bytes from response! {e:?}")
-                    }
-                    
+            // Are we making the assumption that if the file is not in the entry then we can just presume it's valid?
+            // TODO: how can we run unit test on files that doesn't exist? Or do we need to write code to instantiate some file and cleanup afterward?
+            if !destination_path.exists() {
+                let response = attohttpc::get(url.as_ref()).send().map_err(Error::other)?;
+                match response.bytes() {
+                    Ok(body) => fs::write(&destination_path, body)?,
+                    Err(e) => eprintln!("Fail to get bytes from response! {e:?}"),
                 }
-                
-                destination_path    
-            });
-            
+            }
+
+            destination_path
+        });
+
         fs::read_to_string(path)
     }
 
@@ -263,15 +262,21 @@ mod tests {
         let unit = 4u64;
         let days = ExpirationUnits::Day(unit as i8);
         let result = days.cast_to_duration();
-        assert!(result.is_some_and(|f| f.eq(&Duration::from_hours(unit * ExpirationUnits::DAY_INTO_HOURS)) ));
-    
+        assert!(result.is_some_and(|f| f.eq(&Duration::from_hours(
+            unit * ExpirationUnits::DAY_INTO_HOURS
+        ))));
+
         let week = ExpirationUnits::Week(unit as i8);
         let result = week.cast_to_duration();
-        assert!(result.is_some_and(|f| f.eq(&Duration::from_hours(unit * ExpirationUnits::WEEK_INTO_HOURS))));
-    
+        assert!(result.is_some_and(|f| f.eq(&Duration::from_hours(
+            unit * ExpirationUnits::WEEK_INTO_HOURS
+        ))));
+
         let month = ExpirationUnits::Month(unit as i8);
         let result = month.cast_to_duration();
-        assert!(result.is_some_and(|f| f.eq(&Duration::from_hours(unit * ExpirationUnits::MONTH_INTO_HOURS))));
+        assert!(result.is_some_and(|f| f.eq(&Duration::from_hours(
+            unit * ExpirationUnits::MONTH_INTO_HOURS
+        ))));
     }
 
     #[test]
@@ -332,12 +337,9 @@ mod tests {
         let cache = PageCache::load();
         assert!(cache.is_ok());
         let mut cache = cache.unwrap();
-        
 
-        
-        let url = Url::parse("http://www.google.com").unwrap();
+        let url = Url::parse("https://www.google.com").unwrap();
         let content = cache.fetch_or_update(&url);
-
 
         assert!(content.is_ok());
     }

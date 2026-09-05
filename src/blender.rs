@@ -384,7 +384,7 @@ impl ComputerGraphicsProgram for Blender {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use std::fs::File;
+    use std::{cmp::Ordering, fs::File};
 
     use super::*;
     #[cfg(target_os = "macos")]
@@ -505,6 +505,8 @@ pub(crate) mod test {
         list.sort();
         assert_eq!(list[0], older);
         assert_eq!(list[1], newer);
+
+        assert_eq!(newer.cmp(&older), Ordering::Greater);
     }
 
     #[test]
@@ -512,7 +514,8 @@ pub(crate) mod test {
         let expect = 4;
         let value = expect.to_string();
         let parse = Blender::handle_parse(&value);
-        assert!(parse.is_ok_and(|f| f.eq(&expect)));
+        assert!(parse.is_ok());
+        assert_eq!(parse.unwrap(), expect);
 
         let value = "A";
         let parse = Blender::handle_parse(value);

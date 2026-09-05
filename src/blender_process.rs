@@ -167,8 +167,53 @@ mod tests {
             event
         );
 
+        // informational event only
         let line = "Time:00:29.81".to_owned();
         let event = mock.child_stream_to_event(line.clone());
         assert_eq!(event, BlenderEvent::Info(line));
+
+        let line = "Use:".to_owned();
+        let event = mock.child_stream_to_event(line.clone());
+        assert_eq!(event, BlenderEvent::Info(line));
+
+        let line = "Read blend: ".to_owned();
+        let event = mock.child_stream_to_event(line.clone());
+        assert_eq!(event, BlenderEvent::Info(line));
+
+        let line = "Color management: ".to_owned();
+        let event = mock.child_stream_to_event(line.clone());
+        assert_eq!(event, BlenderEvent::Info(line));
+
+        // warning events only
+        let line = "regiondata free error".to_owned();
+        let event = mock.child_stream_to_event(line.clone());
+        assert_eq!(event, BlenderEvent::Warning(line));
+
+        let line = "Warning: Test".to_owned();
+        let event = mock.child_stream_to_event(line.clone());
+        assert_eq!(event, BlenderEvent::Warning(line));
+
+        // Error events only
+        let line = "EXCEPTION: Test".to_owned();
+        let event = mock.child_stream_to_event(line.clone());
+        assert_eq!(event, BlenderEvent::Error(line));
+
+        let line = "Error: Test".to_owned();
+        let event = mock.child_stream_to_event(line.clone());
+        assert_eq!(event, BlenderEvent::Error(line));
+
+        // Exit event - only ever called when Blender quits
+        let line = "Blender quit".to_owned();
+        let event = mock.child_stream_to_event(line.clone());
+        assert_eq!(event, BlenderEvent::Exit);
+
+        // special events (Rare, but possible)
+        let line = "\n".to_owned();
+        let event = mock.child_stream_to_event(line.clone());
+        assert_eq!(event, BlenderEvent::Busy);
+
+        let line = "Something else happend".to_owned();
+        let event = mock.child_stream_to_event(line.clone());
+        assert_eq!(event, BlenderEvent::Unhandled(line));
     }
 }

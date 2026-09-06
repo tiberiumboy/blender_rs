@@ -124,7 +124,7 @@ impl Into<PathBuf> for BlenderConfig {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::blender::test::mock_blender;
+    use crate::blender::tests::mock_blender;
 
     pub fn mock_blender_config(blender: Option<Version>) -> BlenderConfig {
         let mut blenders = HashMap::new();

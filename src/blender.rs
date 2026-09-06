@@ -408,7 +408,7 @@ impl ComputerGraphicsProgram for Blender {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use std::{cmp::Ordering, fs::File};
 
     use super::*;

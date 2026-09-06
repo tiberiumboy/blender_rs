@@ -477,6 +477,7 @@ pub(crate) mod tests {
     }
     */
 
+    // TODO: Issue with TOCTOU.
     #[test]
     fn ensure_verify_checksum_overwrite_unmatched_checksum() {
         let script_path = Blender::generate_script_path();

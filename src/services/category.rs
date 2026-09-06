@@ -38,11 +38,7 @@ pub(crate) struct BlenderCategory {
 // Partial order based on major and minor version of blender category
 impl PartialOrd for BlenderCategory {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let result = match self.major.cmp(&other.major) {
-            Ordering::Equal => self.minor.cmp(&other.minor),
-            ord => ord,
-        };
-        Some(result)
+        Some(self.cmp(&other))
     }
 }
 
@@ -217,24 +213,32 @@ impl BlenderCategory {
     }
 
     // return the version range for this category
+    #[allow(dead_code)] // allowing this dead code in case other developer like to have access to this info
     pub fn get_version(&self) -> Version {
         Version::new(self.major, self.minor, 0) // will always be the lowest patch for category only.
+    }
+
+    pub fn version_match(&self, version: &Version) -> bool {
+        self.major.eq(&version.major) && (version.minor == 0 || self.minor.eq(&version.minor))
     }
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use crate::services::portal::tests::{mock_base_url, mock_get_parent};
 
     use super::*;
 
-    #[test]
-    fn assure_parse_content_succeed() {}
-
-    pub(crate) fn mock_blender_category() -> BlenderCategory {
+    pub(crate) fn mock_blender_category(version: Option<&Version>) -> BlenderCategory {
         let url = mock_base_url();
-        let major = 4;
-        let minor = 2;
+        let major = match version {
+            Some(v) => v.major,
+            None => 4,
+        };
+        let minor = match version {
+            Some(v) => v.minor,
+            None => 2,
+        };
         let base_url = url
             .join(&mock_get_parent(major, minor))
             .expect("Should join successfully");
@@ -242,15 +246,24 @@ mod tests {
     }
 
     #[test]
+    fn ensure_version_match_succeed() {
+        let mock = mock_blender_category(Some(&Version::new(4, 2, 0)));
+        let version = mock.get_version();
+        let unmatched = Version::new(4, 1, 0);
+        let acceptable = Version::new(4, 0, 0);
+        assert!(mock.version_match(&version));
+        assert_eq!(mock.version_match(&unmatched), false);
+        assert_eq!(mock.version_match(&acceptable), true);
+    }
+
+    #[test]
     fn ensure_partial_order_implementation_succeed() {
-        let category = mock_blender_category();
-        let mut identical = mock_blender_category();
-        let mut newer = mock_blender_category();
+        let category = mock_blender_category(None);
+        let mut identical = mock_blender_category(None);
+        let newer = mock_blender_category(Some(&Version::new(4, 3, 0)));
         // this will have a different url path than the category we're testing against. However, partial order ignores urls.
         identical.base_url = mock_base_url();
-        newer.minor = 3;
-        let mut recent = mock_blender_category();
-        recent.major = 3;
+        let recent = mock_blender_category(Some(&Version::new(3, 2, 0)));
         assert!(category.partial_cmp(&newer).is_some_and(|f| f.is_le()));
         assert!(category.partial_cmp(&identical).is_some_and(|f| f.is_eq()));
         assert!(category.partial_cmp(&recent).is_some_and(|f| f.is_ge()));
@@ -258,7 +271,7 @@ mod tests {
 
     #[test]
     fn assure_get_version_succeed() {
-        let category = mock_blender_category();
+        let category = mock_blender_category(None);
         let target_version = Version::new(category.major, category.minor, 0);
         let result = category.get_version();
         assert_eq!(result, target_version);
@@ -267,15 +280,15 @@ mod tests {
     #[test]
     fn assure_get_package_succeed() {
         // because we're using mock version, there's no package loaded.
-        let category = mock_blender_category();
+        let category = mock_blender_category(None);
         let result = category.get_packages();
         assert!(result.is_empty());
     }
 
     #[test]
     fn assure_category_partial_eq_succeed() {
-        let mut lhs = mock_blender_category();
-        let rhs = mock_blender_category();
+        let mut lhs = mock_blender_category(None);
+        let rhs = mock_blender_category(None);
         assert!(lhs.eq(&rhs));
         lhs.base_url = lhs.base_url.join("/dev/null").expect("Should be valid");
         assert_ne!(lhs, rhs);

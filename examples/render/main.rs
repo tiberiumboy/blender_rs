@@ -1,13 +1,22 @@
+#[cfg(feature = "manager")]
 use blender_rs::blend_file::BlendFile;
+#[cfg(feature = "manager")]
 use blender_rs::blender::get_blend_config_from_local;
+#[cfg(feature = "manager")]
 use blender_rs::blender::ComputerGraphicsProgram;
-use blender_rs::blender::Frame;
+#[cfg(feature = "manager")]
 use blender_rs::blender::Manager;
+#[cfg(feature = "manager")]
 use blender_rs::models::event::RenderEvent;
+#[cfg(feature = "manager")]
 use blender_rs::models::{args::Args, event::BlenderEvent};
-use clap::Parser;
+#[cfg(feature = "manager")]
 use semver::Version;
+#[cfg(feature = "manager")]
 use std::fs;
+
+use blender_rs::blender::Frame;
+use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
@@ -25,6 +34,7 @@ struct RenderCli {
     end: Frame,
 }
 
+#[cfg(feature = "manager")]
 fn render_with_manager() {
     let args = RenderCli::parse();
 
@@ -127,6 +137,7 @@ fn render_with_manager() {
 }
 
 fn main() {
+    #[cfg(feature = "manager")]
     render_with_manager();
 }
 

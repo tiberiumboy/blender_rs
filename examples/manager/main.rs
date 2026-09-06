@@ -1,14 +1,15 @@
 // here we'll provide basic cli interface controls to list, edit, add, or remove blender installations history.
 // Below the surface should follow simple implementations similar to REST api.
 // Requires feature flag "manager"
+#[cfg(feature = "manager")]
 use blender_rs::{
     blender::{get_blend_config_from_local, Blender, ComputerGraphicsProgram},
     manager::Manager,
+    utils,
 };
-use std::{fs, path::PathBuf};
-// TODO: I only want to use clap for examples, but not include with the whole library itself.
 use clap::{Parser, Subcommand};
 use semver::Version;
+use std::{fs, path::PathBuf}; // TODO: I only want to use clap for examples, but not include with the whole library itself.
 
 #[derive(Subcommand, Debug)]
 enum Command {
@@ -55,7 +56,9 @@ struct Args {
     command: Option<Command>,
 }
 
-fn handle_download_blender(manager: &mut Manager, version: &Version) {
+/// Try download blender and append to the collection
+#[cfg(feature = "manager")]
+fn handle_download_blender(manager: &mut Manager, version: &Version) -> Result<(), std::io::Error> {
     match manager.fetch_blender(&version) {
         Ok(blender) => println!(
             "[Success] Blender {} installed at {}",
@@ -67,13 +70,14 @@ fn handle_download_blender(manager: &mut Manager, version: &Version) {
     // you should at least save the record if it has been modified. Otherwise all record changes will not be saved away.
     let config = manager.get_config();
     let contents = serde_json::to_string(config).expect("Should be able to deserialize struct!");
-    // TODO: Where is the path we loaded the config from?
-    let path = PathBuf::new();
+    let path = utils::get_blend_config_default_location()?;
     if let Err(e) = fs::write(path, contents) {
         eprintln!("Unable to update persistent data! Changes made will be lost! {e:?}");
     }
+    Ok(())
 }
 
+#[cfg(feature = "manager")]
 fn main() {
     // retrieve the sub command the user wants to invoke
     // let args: Vec<String> = std::env::args().collect::<Vec<String>>();
@@ -132,4 +136,9 @@ fn main() {
             .iter()
             .for_each(|v| println!("{v:?}")),
     }
+}
+
+#[cfg(not(feature = "manager"))]
+fn main() {
+    panic!("Please use the manager features to unlock this feature!");
 }

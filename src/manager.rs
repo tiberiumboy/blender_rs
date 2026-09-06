@@ -107,15 +107,15 @@ impl Manager {
             .iter()
             .map(|package| match package {
                 Package::Metadata(download_link) => (
-                    download_link.download_url.to_owned(),
+                    download_link.get_download_url().to_owned(),
                     download_link.get_version().to_owned(),
                 ),
                 Package::Downloaded(downloaded) => (
-                    downloaded.origin.download_url.to_owned(),
+                    downloaded.origin.get_download_url().to_owned(),
                     downloaded.get_version().to_owned(),
                 ),
                 Package::Bundle(bundle) => (
-                    bundle.content.origin.download_url.to_owned(),
+                    bundle.content.origin.get_download_url().to_owned(),
                     bundle.get_version().to_owned(),
                 ),
             })
@@ -185,6 +185,7 @@ impl Manager {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::blender::tests::mock_blender;
     use crate::models::blender_config::tests::{get_install_path, mock_blender_config};
     use crate::services::portal::tests::mock_portal;
 
@@ -274,5 +275,22 @@ pub(crate) mod tests {
         assert_eq!(get_install_path(&mock.get_config()), &new_path);
     }
 
-    // TODO: Write unit test for Drop if that's possible?
+    #[test]
+    fn ensure_add_blender_succeed() {
+        let blender = mock_blender(None, Version::new(4, 2, 0));
+        let mut manager = mock_manager(None, None);
+        let result = manager.add_blender(&blender);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn ensure_remove_blender_succeed() {
+        let version = Version::new(4, 2, 0);
+        let blender = mock_blender(None, version.clone());
+        let config = mock_blender_config(Some(version.clone()));
+        let mut manager = mock_manager(Some(config), None);
+
+        let result = manager.remove_blender(&blender);
+        assert!(result.is_ok());
+    }
 }

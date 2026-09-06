@@ -25,24 +25,26 @@ impl Downloaded {
     // return the path of execution entry point (mac specific)
     fn get_executable_path(&self) -> Result<PathBuf, BlenderCategoryError> {
         let path = self.get_content_path()?;
-        // Do we want to return the absolute executable path, or path to application source?
-        #[cfg(target_os = "macos")]
-        return Ok(path.join("Blender.app").join(MACOS_PATH));
-        #[cfg(target_os = "linux")]
-        return Ok(path.join("blender"));
-        #[cfg(target_os = "windows")]
-        return Ok(path.join("Blender.exe"));
+        cfg_select! {
+            target_os = "macos" => Ok(path.join("Blender.app").join(MACOS_PATH)),
+            target_os = "linux" => Ok(path.join("blender")),
+            target_os = "windows" => Ok(path.join("Blender.exe")),
+            _ => Err(BlenderCategoryError::UnsupportedOS(OS.into())),
+        }
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    fn get_content_path(&self) -> Result<PathBuf, BlenderCategoryError> {
+        Err(BlenderCategoryError::UnsupportedOS(OS.into()))
     }
 
     // return the destination of application source and bundle (mac specific)
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
     fn get_content_path(&self) -> Result<PathBuf, BlenderCategoryError> {
-        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-        return Err(BlenderCategoryError::UnsupportedOS(OS.into()));
-
         let ext = get_extension().map_err(|e| BlenderCategoryError::UnsupportedOS(e.into()))?;
         // A hack- get_extension does not include period, so we need to include the period to generate the folder name correctly
         // TODO: is there a better way to handle this extension replacement?
-        let folder_name = self.origin.file_name.replace(&format!(".{ext}"), ""); // remove the extension
+        let folder_name = self.origin.get_file_name().replace(&format!(".{ext}"), ""); // remove the extension
         Ok(self.content.parent().unwrap().join(folder_name))
     }
 
@@ -195,7 +197,7 @@ impl PackageT for Downloaded {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::services::packages::{bundle::tests::mock_bundle, download_link::tests::mock_downloadlink};
+    use crate::services::packages::download_link::tests::mock_downloadlink;
     use std::{fs, str::FromStr};
 
     pub(crate) fn mock_downloaded() -> Downloaded {
@@ -231,12 +233,13 @@ pub(crate) mod tests {
     fn assure_extract_content_error_on_invalid_path() {
         // Assure that empty file path should return error
         let path = PathBuf::new();
-        let destination = fs::canonicalize(PathBuf::from("./")).expect("Should resolve to absolute path!");
+        let destination =
+            fs::canonicalize(PathBuf::from("./")).expect("Should resolve to absolute path!");
         let result = Downloaded::extract_content(path, destination);
         assert!(result.is_err());
 
         // assure that invalid compressed file should return error
-        // let file = 
+        // let file =
     }
 
     #[test]

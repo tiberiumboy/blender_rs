@@ -1,9 +1,10 @@
 use super::render_setting::RenderSetting;
 use serde::{Deserialize, Serialize};
+use std::num::NonZero;
 
 pub type SceneName = String;
 pub type Camera = String;
-pub type Sample = i32;
+pub type Sample = NonZero<i32>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BlenderScene {

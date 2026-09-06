@@ -18,9 +18,10 @@ attohttpc = { version = "0.31", features = ["tls-native"], optional = true }
 
 [dev-dependencies]
 clap = { version = "4.6", features = ["derive"] }
+# tempfile = "*" # TODO: Implement tempfile for blend files, blender installation, and cache validation
 
 [target.'cfg(target_os = "windows")'.dependencies]
-zip = "8.1"
+zip = "9"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 dmg = { version = "0.1" }
@@ -33,3 +34,4 @@ tar = { version = "0.4" }
 default = ["full"]
 manager = ["dep:attohttpc", "dep:url"]
 full = ["manager"]
+min = []

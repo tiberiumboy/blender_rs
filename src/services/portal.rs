@@ -4,6 +4,7 @@ use crate::services::packages::package::Package;
 use crate::{blender::ManagerError, page_cache::PageCache};
 use regex::Regex;
 use semver::Version;
+use std::cmp::Ordering;
 use std::env::consts::{ARCH, OS};
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, OnceLock};
@@ -103,7 +104,7 @@ impl Portal {
             |mut map: Vec<BlenderCategory>, (_, [url, major, minor])| {
                 let version = match Blender::parse_partial_version(major, minor, None) {
                     Some(v) => v,
-                    None => return map
+                    None => return map,
                 };
 
                 if let Some(category) = Portal::generate_blender_category(
@@ -129,18 +130,12 @@ impl Portal {
     fn get_blender_state_by_version(&mut self, version: &Version) -> Option<&mut BlenderCategory> {
         // need to pop the element from the collection.
         self.list.iter_mut().fold(None, |result, item| {
-            let current_version = item.get_version();
-
-            if current_version.major.ne(&version.major) {
-                return result;
-            }
-
-            if version.minor != 0 && current_version.minor.ne(&version.minor) {
+            if !item.version_match(&version) {
                 return result;
             }
 
             if let Some(latest) = &result {
-                if latest.get_version().le(&current_version) {
+                if let Ordering::Less = latest.cmp(&item) {
                     return result;
                 }
             }
@@ -222,6 +217,7 @@ impl Portal {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::services::category::tests::mock_blender_category;
 
     pub fn mock_portal(download_path: Option<PathBuf>) -> Portal {
         let list = Vec::new();
@@ -281,13 +277,30 @@ pub mod tests {
         let mut mock = mock_portal(None);
         let result = mock.get_blender_state_by_version(&version);
         assert!(result.is_none());
+
+        let new_category = mock_blender_category(Some(&Version::new(5, 2, 0)));
+        let recent_category = mock_blender_category(Some(&version));
+        let old_category = mock_blender_category(Some(&Version::new(4, 1, 0)));
+        let mut list = vec![new_category, old_category, recent_category];
+        mock.list.append(&mut list);
+        let result = mock.get_blender_state_by_version(&version);
+        assert!(result.is_some_and(|c| c.version_match(&version)));
     }
 
     #[test]
     fn assure_get_downloads_succeed() {
-        let mock = mock_portal(None);
+        let mut mock = mock_portal(None);
         let list = mock.get_downloads();
         // should contain no download list from mock
+        assert_eq!(list.iter().count(), 0);
+
+        let new_category = mock_blender_category(Some(&Version::new(5, 2, 0)));
+        let recent_category = mock_blender_category(None);
+        let old_category = mock_blender_category(Some(&Version::new(4, 1, 0)));
+        let mut list = vec![new_category, old_category, recent_category];
+        mock.list.append(&mut list);
+        let list = mock.get_downloads();
+        // currently all of the mock_blender_category does not have any links collection, therefore the number of links exported from mock will be 0.
         assert_eq!(list.iter().count(), 0);
     }
 

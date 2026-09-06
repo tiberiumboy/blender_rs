@@ -82,6 +82,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "manager")]
     fn assure_get_valid_arch_succeed() {
         let arch = get_valid_arch();
         assert!(arch.is_ok());
@@ -90,6 +91,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "manager")]
     fn assure_get_valid_ext_succeed() {
         let ext = get_extension();
         assert!(ext.is_ok());

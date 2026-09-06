@@ -477,6 +477,7 @@ pub(crate) mod tests {
     }
     */
 
+    // TODO: Issue with TOCTOU.
     #[test]
     fn ensure_verify_checksum_overwrite_unmatched_checksum() {
         let script_path = Blender::generate_script_path();
@@ -686,6 +687,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg(feature = "manager")]
     fn assure_valid_version_response() {
         // assure successful result
         let version = Blender::parse_partial_version("4", "3", None);

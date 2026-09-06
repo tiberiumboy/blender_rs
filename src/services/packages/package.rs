@@ -44,8 +44,6 @@ impl Package {
         link: DownloadLink,
         destination: impl AsRef<Path>,
     ) -> Result<Package, BlenderCategoryError> {
-        // This ideally should return something...
-        // we'll start here first
         let downloaded = match link.content_exist(destination) {
             Ok(downloaded) => downloaded,
             Err(download_link) => return Ok(Package::Metadata(download_link)),

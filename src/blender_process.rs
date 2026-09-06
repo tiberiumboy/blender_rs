@@ -15,6 +15,7 @@ pub struct BlenderProcess {
     current_frame: Frame,
 }
 
+// TODO: Consider implementing SSE (Stream Server Event?)
 impl BlenderProcess {
     pub(crate) fn new(inner: BufReader<ChildStdout>, start_frame: Frame) -> BlenderProcess {
         BlenderProcess {

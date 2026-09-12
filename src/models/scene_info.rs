@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    num::NonZero,
+    path::{Path, PathBuf},
+};
 
 use blend::Blend;
 use semver::Version;
@@ -15,7 +18,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SceneInfo {
     pub scenes: Vec<SceneName>,
     pub cameras: Vec<Camera>,
@@ -26,6 +29,24 @@ pub struct SceneInfo {
     fps: FrameRate,
     sample: Sample,
     output: PathBuf,
+}
+
+impl Default for SceneInfo {
+    fn default() -> Self {
+        let fps = NonZero::new(24).unwrap();
+        let sample = NonZero::new(32).unwrap();
+        Self {
+            scenes: Default::default(),
+            cameras: Default::default(),
+            frame_start: Default::default(),
+            frame_end: Default::default(),
+            render_width: Default::default(),
+            render_height: Default::default(),
+            fps,
+            sample,
+            output: Default::default(),
+        }
+    }
 }
 
 impl SceneInfo {
@@ -64,7 +85,19 @@ impl SceneInfo {
     }
 
     pub fn process(blend: &Blend) -> Result<Self, BlenderError> {
-        let mut scene_info = Self::new(Vec::new(), Vec::new(), 0, 0, 0, 0, 0, 0, PathBuf::new());
+        let default_framerate = NonZero::new(1).unwrap();
+        let default_sample = NonZero::new(1).unwrap();
+        let mut scene_info = Self::new(
+            Vec::new(),
+            Vec::new(),
+            0,
+            0,
+            0,
+            0,
+            default_framerate,
+            default_sample,
+            PathBuf::new(),
+        );
         // this denotes how many scene objects there are.
         for obj in blend.instances_with_code(*b"SC") {
             let scene = obj.get("id").get_string("name").replace("SC", ""); // not the correct name usage?
@@ -77,13 +110,24 @@ impl SceneInfo {
             //     x if x.contains("OPTIX") => Engine::OPTIX,
             //     _ => Engine::CYCLES,
             // };
+            let sample = obj.get("eevee").get_i32("taa_render_samples");
+            let sample = match NonZero::new(sample) {
+                Some(sample) => sample,
+                None => continue,
+            };
 
-            scene_info.sample = obj.get("eevee").get_i32("taa_render_samples");
+            let fps = render.get_u16("frs_sec");
+            let fps = match NonZero::new(fps) {
+                Some(fps) => fps,
+                None => continue,
+            };
+
+            scene_info.sample = sample;
             scene_info.render_width = render.get_i32("xsch");
             scene_info.render_height = render.get_i32("ysch");
             scene_info.frame_start = render.get_i32("sfra");
             scene_info.frame_end = render.get_i32("efra");
-            scene_info.fps = render.get_u16("frs_sec");
+            scene_info.fps = fps;
             scene_info.output = render
                 .get_string("pic")
                 .parse::<PathBuf>()
@@ -138,16 +182,20 @@ pub mod tests {
     use super::*;
 
     pub fn mock_scene_info() -> SceneInfo {
-        SceneInfo {
-            scenes: Vec::new(),
-            cameras: Vec::new(),
-            frame_start: 1,
-            frame_end: 2,
-            render_width: 1280,
-            render_height: 720,
-            fps: 20,
-            sample: 100,
-            output: PathBuf::new(),
-        }
+        let mut default = SceneInfo::default();
+        default.frame_start = 1;
+        default.frame_end = 2;
+        default.render_width = 1280;
+        default.render_height = 720;
+        default
+    }
+
+    #[test]
+    fn ensure_default_succeed() {
+        let default = SceneInfo::default();
+        assert_eq!(default.frame_start, 0);
+        assert_eq!(default.frame_end, 0);
+        assert_eq!(default.cameras.iter().count(), 0);
+        assert_eq!(default.scenes.iter().count(), 0);
     }
 }

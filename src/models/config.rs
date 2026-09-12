@@ -6,9 +6,9 @@ use super::{
 };
 use crate::blender::Frame;
 use serde::{Deserialize, Serialize};
-use std::io::Result as IoResult;
 use std::path::PathBuf;
 use std::thread::available_parallelism;
+use std::{io::Result as IoResult, num::NonZero};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -21,7 +21,7 @@ pub struct BlenderConfiguration {
     output: PathBuf,
     scene_info: BlenderScene,
     /// The number of cores to utilize for this rendering job.
-    cores: usize,
+    cores: NonZero<usize>, // ensure that this value will never be zero.
     /// Which rendering architecture to use
     processor: Processor,
     /// Which hardware to utilize
@@ -42,7 +42,7 @@ impl BlenderConfiguration {
     fn new(
         output: PathBuf,
         scene_info: BlenderScene,
-        cores: usize,
+        cores: NonZero<usize>,
         processor: Processor,
         hardware_mode: HardwareMode,
         sample: Sample,
@@ -77,7 +77,7 @@ impl BlenderConfiguration {
         end: Frame,
     ) -> IoResult<BlenderConfiguration> {
         // try to pull the core, or throw error
-        let cores = available_parallelism()?.get();
+        let cores = available_parallelism()?;
         Ok(Self::new(
             output,
             scene_info,
@@ -107,7 +107,7 @@ pub mod tests {
             blender_scene,
             Processor::NONE,
             HardwareMode::BOTH,
-            0,
+            NonZero::new(1).unwrap(),
             Format::default(),
             0,
             1,

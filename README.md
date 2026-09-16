@@ -1,11 +1,11 @@
-# Blender.rs
-This library will help download, install, and render blender files. This library is treated as a wrapper class to invoke blender directly. This struct also handle downloading blender and check for version integrity by passing in executable path.
+# Blender_rs
+This library will help download, install, and render blender files. This crate is a wrapper handler design to invoke blender and process outputs. This struct is capable of downloading blender from source and validate version integrity.
 
 ## Examples
-I've composed a list of example what you can do with blender.rs
+I've composed a list of example what you can do with blender_rs. You must have at least a blender installed (min version 4.2.0) appended to the manager before running render example.
 
 ### Download
-This example demonstrate downloading a copy of blender from the blender foundation organization, uncompressed the content, and return you a new struct containing blender path and version, ready to be used to render.
+This example demonstrate downloading a copy of blender from the blender foundation organization, uncompressed the content, and return you a new struct containing blender path and version, with methods ready to render.
 
 Run
 ```bash
@@ -15,6 +15,3 @@ cargo run --example manager exact-download 4.1.0
 ```
 
 For more info, please read [here](./examples/manager/README.md).
-
-### Render
-This example will first check if you have blender installed, if not, it will ask you to run above examples. 

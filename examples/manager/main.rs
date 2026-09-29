@@ -5,10 +5,9 @@ use blender_rs::{
     blender::{get_blend_config_from_local, Blender, ComputerGraphicsProgram},
     manager::Manager,
 };
-use std::{fs, path::PathBuf};
-// TODO: I only want to use clap for examples, but not include with the whole library itself.
 use clap::{Parser, Subcommand};
 use semver::Version;
+use std::{fs, path::PathBuf}; // TODO: I only want to use clap for examples, but not include with the whole library itself.
 
 #[derive(Subcommand, Debug)]
 enum Command {

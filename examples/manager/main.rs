@@ -4,6 +4,7 @@
 use blender_rs::{
     blender::{get_blend_config_from_local, Blender, ComputerGraphicsProgram},
     manager::Manager,
+    utils,
 };
 use clap::{Parser, Subcommand};
 use semver::Version;
@@ -54,6 +55,7 @@ struct Args {
     command: Option<Command>,
 }
 
+/// Try download blender and append to the collection
 fn handle_download_blender(manager: &mut Manager, version: &Version) {
     match manager.fetch_blender(&version) {
         Ok(blender) => println!(
@@ -66,8 +68,7 @@ fn handle_download_blender(manager: &mut Manager, version: &Version) {
     // you should at least save the record if it has been modified. Otherwise all record changes will not be saved away.
     let config = manager.get_config();
     let contents = serde_json::to_string(config).expect("Should be able to deserialize struct!");
-    // TODO: Where is the path we loaded the config from?
-    let path = PathBuf::new();
+    let path = utils::get_blend_config_default_location()?;
     if let Err(e) = fs::write(path, contents) {
         eprintln!("Unable to update persistent data! Changes made will be lost! {e:?}");
     }

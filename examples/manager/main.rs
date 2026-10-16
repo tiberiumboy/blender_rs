@@ -56,7 +56,7 @@ struct Args {
 }
 
 /// Try download blender and append to the collection
-fn handle_download_blender(manager: &mut Manager, version: &Version) {
+fn handle_download_blender(manager: &mut Manager, version: &Version) -> Result<(), std::io::Error> {
     match manager.fetch_blender(&version) {
         Ok(blender) => println!(
             "[Success] Blender {} installed at {}",
@@ -72,6 +72,7 @@ fn handle_download_blender(manager: &mut Manager, version: &Version) {
     if let Err(e) = fs::write(path, contents) {
         eprintln!("Unable to update persistent data! Changes made will be lost! {e:?}");
     }
+    Ok(())
 }
 
 fn main() {

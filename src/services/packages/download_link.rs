@@ -12,19 +12,18 @@ use std::{
 use url::Url;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct DownloadLink {
+pub struct DownloadLink {
     version: Version,
-    pub file_name: String, // contains extensions!
-    pub download_url: Url,
+    file_name: String, // contains extensions!
+    download_url: Url,
 }
 
 impl DownloadLink {
-
     fn new(file_name: String, download_url: Url, version: Version) -> DownloadLink {
         Self {
             file_name,
             download_url,
-            version
+            version,
         }
     }
 
@@ -35,13 +34,20 @@ impl DownloadLink {
             .last()
             .ok_or(BlenderCategoryError::NotFound)?
             .to_owned();
-
-        Ok(Self::new(name,url,version))
+        Ok(Self::new(name, url, version))
     }
 
     #[inline]
     fn download_path(&self, install_path: impl AsRef<Path>) -> PathBuf {
         install_path.as_ref().join(&self.file_name)
+    }
+
+    pub fn get_file_name(&self) -> &str {
+        &self.file_name
+    }
+
+    pub fn get_download_url(&self) -> &Url {
+        &self.download_url
     }
 
     // Destination expects absolute path
@@ -123,9 +129,24 @@ pub(crate) mod tests {
     #[test]
     fn assure_mock_download_errors() {
         let mock = mock_downloadlink();
-        let destination = fs::canonicalize(PathBuf::from("./")).expect("Should expand to absolute path!");
+        let destination =
+            fs::canonicalize(PathBuf::from("./")).expect("Should expand to absolute path!");
         let result = mock.download(destination);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn assure_get_download_url_succeed() {
+        let mock = mock_downloadlink();
+        let url = mock.get_download_url();
+        assert_eq!(url, &mock.download_url);
+    }
+
+    #[test]
+    fn assure_get_version_succeed() {
+        let mock = mock_downloadlink();
+        let version = mock.get_version();
+        assert_eq!(version, &mock.version);
     }
 
     // TODO: before uncommenting below - find a way to mock attohttpc for unit test purposes

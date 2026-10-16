@@ -107,15 +107,15 @@ impl Manager {
             .iter()
             .map(|package| match package {
                 Package::Metadata(download_link) => (
-                    download_link.download_url.to_owned(),
+                    download_link.get_download_url().to_owned(),
                     download_link.get_version().to_owned(),
                 ),
                 Package::Downloaded(downloaded) => (
-                    downloaded.origin.download_url.to_owned(),
+                    downloaded.origin.get_download_url().to_owned(),
                     downloaded.get_version().to_owned(),
                 ),
                 Package::Bundle(bundle) => (
-                    bundle.content.origin.download_url.to_owned(),
+                    bundle.content.origin.get_download_url().to_owned(),
                     bundle.get_version().to_owned(),
                 ),
             })
